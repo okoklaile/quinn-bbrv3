@@ -91,6 +91,10 @@ impl BandwidthEstimation {
         let bytes_per_second = b_ns / (window_duration_ns as u64);
         Some(bytes_per_second)
     }
+
+    pub(crate) fn get_latest_bw(&self) -> u64 {
+        self.latest_bw
+    }
 }
 
 impl Default for BandwidthEstimation {

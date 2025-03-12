@@ -8,11 +8,12 @@ use std::time::Instant;
 mod bbr;
 mod cubic;
 mod new_reno;
+mod bbr2;
 
 pub use bbr::{Bbr, BbrConfig};
 pub use cubic::{Cubic, CubicConfig};
 pub use new_reno::{NewReno, NewRenoConfig};
-
+pub use  bbr2::Bbr2;
 /// Common interface for different congestion controllers
 pub trait Controller: Send + Sync {
     /// One or more packets were just sent
