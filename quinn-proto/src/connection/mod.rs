@@ -651,12 +651,28 @@ impl Connection {
                     }
 
                     // Check whether the next datagram is blocked by pacing
+                    // let smoothed_rtt = self.path.rtt.get();
+                    // if let Some(delay) = self.path.pacing.delay(
+                    //     smoothed_rtt,
+                    //     bytes_to_send,
+                    //     self.path.current_mtu(),
+                    //     self.path.congestion.window(),
+                    //     now,
+                    // ) {
+                    //     self.timers.set(Timer::Pacing, delay);
+                    //     congestion_blocked = true;
+                    //     // Loss probes should be subject to pacing, even though
+                    //     // they are not congestion controlled.
+                    //     trace!("blocked by pacing");
+                    //     break;
+                    // }
+
                     let smoothed_rtt = self.path.rtt.get();
                     if let Some(delay) = self.path.pacing.delay(
                         smoothed_rtt,
                         bytes_to_send,
                         self.path.current_mtu(),
-                        self.path.congestion.window(),
+                        self.path.congestion.pacing_window(),
                         now,
                     ) {
                         self.timers.set(Timer::Pacing, delay);

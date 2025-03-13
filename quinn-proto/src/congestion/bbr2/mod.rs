@@ -412,6 +412,10 @@ impl Controller for Bbr2 {
     fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
+
+    fn pacing_window(&self) -> u64 {
+        self.bbr2_state.pacing_rate * self.bbr2_state.min_rtt
+    }
 }
 
 

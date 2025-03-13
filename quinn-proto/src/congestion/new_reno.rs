@@ -123,6 +123,10 @@ impl Controller for NewReno {
     fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
+
+    fn pacing_window(&self) -> u64 {
+        self.window()
+    }
 }
 
 /// Configuration for the `NewReno` congestion controller

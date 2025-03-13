@@ -74,6 +74,9 @@ pub trait Controller: Send + Sync {
 
     /// Returns Self for use in down-casting to extract implementation details
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
+
+    /// return pacing window for connection/pacing
+    fn pacing_window(&self) -> u64;
 }
 
 /// Constructs controllers on demand
