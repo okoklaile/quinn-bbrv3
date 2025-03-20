@@ -9,6 +9,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
+在quinn的基础上，依照google 的 quiche 实现了BBRV2，用mininet测试过跑得还行，后续发现再继续改。
+
+
 Quinn is a pure-Rust, async-compatible implementation of the IETF [QUIC][quic] transport protocol.
 The project was founded by [Dirkjan Ochtman](https://github.com/djc) and
 [Benjamin Saunders](https://github.com/Ralith) as a side project in 2018, and has seen more than
