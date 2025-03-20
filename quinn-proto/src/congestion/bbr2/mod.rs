@@ -149,10 +149,12 @@ impl Bbr2 {
     
     // When entering the recovery episode.
     fn bbr2_enter_recovery(&mut self, in_flight: usize, now: Instant) {
+        eprintln!("bbr2_enter_recovery");
         self.bbr2_state.prior_cwnd = per_ack::bbr2_save_cwnd(self);
-
+        eprint!("cwnd: {}",self.congestion_window);
         self.congestion_window =
-            in_flight + self.bbr2_state.newly_acked_bytes.max(self.max_datagram_size);
+            in_flight + self.bbr2_state.newly_acked_bytes.max(self.max_datagram_size * 4);
+        eprintln!(" ===> {}",self.congestion_window);
         self.congestion_recovery_start_time = Some(now);
 
         self.bbr2_state.packet_conservation = true;
@@ -244,6 +246,7 @@ impl Bbr2 {
             self.end_recovery_at_packet_number = self.max_sent_packet_number;
             if !self.in_congestion_recovery(now) {
                 // Upon entering Fast Recovery.
+                eprintln!("congestion_event: bytes_in_flight:{}, lost_bytes:{}", bytes_in_flight, lost_bytes);
                 self.bbr2_enter_recovery(bytes_in_flight - lost_bytes, now);
             }
         }
@@ -283,11 +286,13 @@ impl Bbr2 {
 
 impl Controller for Bbr2 {
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
+        // eprintln!("on_sent start");
         self.max_sent_packet_number = last_packet_number;
         self.max_bandwidth.on_sent(now, bytes);
         
         self.estimated_flight_size = self.estimated_flight_size.saturating_add(bytes as usize); // 预估的flight 的 size
         self.on_packet_sent(bytes as usize, self.estimated_flight_size, now);
+        // eprintln!("on_sent over");
     }
 
     fn on_ack(
@@ -298,6 +303,7 @@ impl Controller for Bbr2 {
         app_limited: bool,
         rtt: &RttEstimator,
     ) {
+        // eprintln!("on_ack start");
         self.max_bandwidth
             .on_ack(now, sent, bytes, self.round_count, app_limited);
         self.acked_bytes += bytes;
@@ -306,7 +312,7 @@ impl Controller for Bbr2 {
         if ((now > self.bbr2_state.min_rtt_stamp + rtt.get().saturating_mul(MIN_RTT_FILTER_LEN)) && !app_limited) || self.min_rtt > rtt.min() {
             self.min_rtt = rtt.min();
         }
-        
+        // eprintln!("on_ack over");
     }
 
     fn on_end_acks(
@@ -316,6 +322,7 @@ impl Controller for Bbr2 {
         app_limited: bool,
         largest_packet_num_acked: Option<u64>,
     ) {
+        // eprintln!("on_end_acks start");
         let bytes_acked = self.max_bandwidth.bytes_acked_this_window();
         self.delivered += bytes_acked as usize;
         let excess_acked = self.ack_aggregation.update_ack_aggregation_bytes(
@@ -370,6 +377,7 @@ impl Controller for Bbr2 {
 
         self.prev_in_flight_count = in_flight;
         self.loss_state.reset();
+        // eprintln!("on_end_acks over");
     }
 
     fn on_congestion_event(
@@ -379,16 +387,20 @@ impl Controller for Bbr2 {
         _is_persistent_congestion: bool,
         lost_bytes: u64,
     ) {
+        // eprintln!("on_congestion_event start");
         self.loss_state.lost_bytes += lost_bytes;
         self.congestion_event(self.estimated_flight_size, lost_bytes as usize, now);
+        // eprintln!("on_congestion_event over");
     }
 
     fn on_mtu_update(&mut self, new_mtu: u16) {
+        // eprintln!("on_mtu_update start");
         self.current_mtu = new_mtu as u64;
         self.min_cwnd = calculate_min_window(self.current_mtu);
         self.init_cwnd = self.config.initial_window.max(self.min_cwnd);
         // self.cwnd = self.cwnd.max(self.min_cwnd);
         self.congestion_window = self.congestion_window.max(self.min_cwnd as usize);
+        // eprintln!("on_mtu_update over");
     }
 
     fn window(&self) -> u64 {
@@ -398,6 +410,8 @@ impl Controller for Bbr2 {
         //     return self.cwnd.min(self.recovery_window);
         // }
         // self.cwnd
+        eprintln!("get congestion_window");
+        // return 10000000;
         self.congestion_window as u64
     }
 
@@ -414,7 +428,26 @@ impl Controller for Bbr2 {
     }
 
     fn pacing_window(&self) -> u64 {
-        self.bbr2_state.pacing_rate * self.bbr2_state.min_rtt
+        
+        // return 10000000;
+        // self.congestion_window as u64
+        let min_rtt_secs = self.bbr2_state.min_rtt.as_secs_f64();
+        if self.bbr2_state.pacing_rate == 0 || min_rtt_secs < 0.01 {
+            // eprintln!("using cwnd, pacing_rate:{}, min_rtt:{}, cwnd:{}", self.bbr2_state.pacing_rate, min_rtt_secs, self.congestion_window);
+            self.congestion_window as u64
+        }
+        else {
+            let mut pacwid = (self.bbr2_state.pacing_rate as f64 * min_rtt_secs) as u64;
+            if pacwid < (0.2*self.congestion_window as f64) as u64 {
+                // eprintln!("pacwid < 0.2*cwnd, pacing_rate:{}, min_rtt:{}, cwnd:{}", self.bbr2_state.pacing_rate, min_rtt_secs, self.congestion_window);
+                // self.congestion_window = self.congestion_window.max(self.max_datagram_size * 2);
+                pacwid = self.congestion_window as u64;  
+            }
+            else {
+                // eprintln!("using origin pacwid pacing_rate:{}, min_rtt:{}, cwnd:{}", self.bbr2_state.pacing_rate, min_rtt_secs, self.congestion_window);
+            }
+            pacwid
+        }
     }
 }
 

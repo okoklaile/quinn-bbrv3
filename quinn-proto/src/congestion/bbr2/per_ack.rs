@@ -28,6 +28,7 @@ use std::cmp;
 
 use super::*;
 use ring::rand::{SecureRandom, SystemRandom};
+
 use std::time::Duration;
 // use crate::recovery;
 const MINIMUM_WINDOW_PACKETS: usize = 2;
@@ -42,7 +43,7 @@ fn bbr2_min_pipe_cwnd(r: &mut Bbr2) -> usize {
 
 // BBR2 Functions when ACK is received.
 // fn bbr2_update_model_and_state(r: &mut Bbr2, packet: &Acked, in_flight: usize, now: Instant,)
-pub fn bbr2_update_model_and_state(
+pub(super) fn bbr2_update_model_and_state(
     r: &mut Bbr2, in_flight: usize, now: Instant,
 ) {
     per_loss::bbr2_update_latest_delivery_signals(r);
@@ -59,7 +60,7 @@ pub fn bbr2_update_model_and_state(
     per_loss::bbr2_bound_bw_for_model(r);
 }
 
-pub fn bbr2_update_control_parameters(
+pub(super) fn bbr2_update_control_parameters(
     r: &mut Bbr2, in_flight: usize, now: Instant,
 ) {
     pacing::bbr2_set_pacing_rate(r);
@@ -229,7 +230,7 @@ fn bbr2_is_reno_coexistence_probe_time(r: &mut Bbr2) -> bool {
 
 // How much data do we want in flight?
 // Our estimated BDP, unless congestion cut cwnd.
-pub fn bbr2_target_inflight(r: &mut Bbr2) -> usize {
+pub(super) fn bbr2_target_inflight(r: &mut Bbr2) -> usize {
     r.bbr2_state.bdp.min(r.congestion_window)
 }
 
@@ -238,7 +239,7 @@ fn bbr2_enter_probe_bw(r: &mut Bbr2, now: Instant) {
     bbr2_start_probe_bw_down(r, now);
 }
 
-pub fn bbr2_start_probe_bw_down(r: &mut Bbr2, now: Instant) {
+pub(super) fn bbr2_start_probe_bw_down(r: &mut Bbr2, now: Instant) {
     per_loss::bbr2_reset_congestion_signals(r);
 
     // not growing inflight_hi
@@ -758,7 +759,7 @@ fn bbr2_update_max_inflight(r: &mut Bbr2) {
 }
 
 // 4.6.4.4.  Modulating cwnd in Loss Recovery
-pub fn bbr2_save_cwnd(r: &mut Bbr2) -> usize {
+pub(super) fn bbr2_save_cwnd(r: &mut Bbr2) -> usize {
     if !r.bbr2_state.in_recovery &&
         r.bbr2_state.state != BBR2StateMachine::ProbeRTT
     {
@@ -768,24 +769,31 @@ pub fn bbr2_save_cwnd(r: &mut Bbr2) -> usize {
     }
 }
 
-pub fn bbr2_restore_cwnd(r: &mut Bbr2) {
+pub(super) fn bbr2_restore_cwnd(r: &mut Bbr2) {
+    eprintln!("bbr2_restore_cwnd");
+    eprint!("cwnd: {}", r.congestion_window);
     r.congestion_window = r.congestion_window.max(r.bbr2_state.prior_cwnd);
+    eprintln!(" ===> {}", r.congestion_window)
 }
 
 fn bbr2_modulate_cwnd_for_recovery(r: &mut Bbr2, in_flight: usize) {
     let acked_bytes = r.bbr2_state.newly_acked_bytes;
     let lost_bytes = r.bbr2_state.newly_lost_bytes;
-
+    eprintln!("bbr2_modulate_cwnd_for_recovery");
     if lost_bytes > 0 {
         // QUIC mininum cwnd is 2 x MSS.
+        eprint!("1 cwnd: {}", r.congestion_window);
         r.congestion_window = r
             .congestion_window
             .saturating_sub(lost_bytes)
             .max(r.max_datagram_size * MINIMUM_WINDOW_PACKETS);
+        eprintln!(" ===> {}", r.congestion_window)
     }
 
     if r.bbr2_state.packet_conservation {
+        eprint!("2 cwnd: {}", r.congestion_window);
         r.congestion_window = r.congestion_window.max(in_flight + acked_bytes);
+        eprintln!(" ===> {}", r.congestion_window)
     }
 }
 
@@ -799,31 +807,42 @@ fn bbr2_probe_rtt_cwnd(r: &mut Bbr2) -> usize {
 
 fn bbr2_bound_cwnd_for_probe_rtt(r: &mut Bbr2) {
     if r.bbr2_state.state == BBR2StateMachine::ProbeRTT {
-        r.congestion_window = r.congestion_window.min(bbr2_probe_rtt_cwnd(r));
+        // gps todo
+        eprintln!("bbr2_bound_cwnd_for_probe_rtt");
+        eprint!("cwnd: {}", r.congestion_window);
+        r.congestion_window = r.congestion_window.min(bbr2_probe_rtt_cwnd(r));  
+        eprintln!(" ===> {}", r.congestion_window);  
     }
 }
 
 // 4.6.4.6.  Core cwnd Adjustment Mechanism
 fn bbr2_set_cwnd(r: &mut Bbr2, in_flight: usize) {
     let acked_bytes = r.bbr2_state.newly_acked_bytes;
-
+    eprintln!("bbr2_set_cwnd");
     bbr2_update_max_inflight(r);
     bbr2_modulate_cwnd_for_recovery(r, in_flight);
 
     if !r.bbr2_state.packet_conservation {
         if r.bbr2_state.filled_pipe {
+            eprint!("1 cwnd: {}", r.congestion_window);
             r.congestion_window = cmp::min(
                 r.congestion_window + acked_bytes,
                 r.bbr2_state.max_inflight,
-            )
+            );
+            eprintln!(" ===> {}", r.congestion_window);
+            return;
+            
         } else if r.congestion_window < r.bbr2_state.max_inflight ||
             r.delivered <
                 r.max_datagram_size * r.initial_congestion_window_packets
         {
+            eprint!("2 cwnd: {}", r.congestion_window);
             r.congestion_window += acked_bytes;
+            eprintln!(" ===> {}", r.congestion_window);
         }
-
-        r.congestion_window = r.congestion_window.max(bbr2_min_pipe_cwnd(r))
+        eprint!("3 cwnd: {}", r.congestion_window);
+        r.congestion_window = r.congestion_window.max(bbr2_min_pipe_cwnd(r));
+        eprintln!(" ===> {}", r.congestion_window);
     }
 
     bbr2_bound_cwnd_for_probe_rtt(r);
@@ -847,6 +866,8 @@ fn bbr2_bound_cwnd_for_model(r: &mut Bbr2) {
     // Apply inflight_lo (possibly infinite).
     cap = cap.min(r.bbr2_state.inflight_lo);
     cap = cap.max(bbr2_min_pipe_cwnd(r));
-
+    eprintln!("bbr2_bound_cwnd_for_model");
+    eprint!("cwnd: {}", r.congestion_window);
     r.congestion_window = r.congestion_window.min(cap);
+    eprintln!(" ===> {}", r.congestion_window);
 }

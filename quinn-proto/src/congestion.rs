@@ -13,7 +13,7 @@ mod bbr2;
 pub use bbr::{Bbr, BbrConfig};
 pub use cubic::{Cubic, CubicConfig};
 pub use new_reno::{NewReno, NewRenoConfig};
-pub use  bbr2::Bbr2;
+pub use  bbr2::{Bbr2, BbrConfig2};
 /// Common interface for different congestion controllers
 pub trait Controller: Send + Sync {
     /// One or more packets were just sent
@@ -85,4 +85,4 @@ pub trait ControllerFactory {
     fn build(self: Arc<Self>, now: Instant, current_mtu: u16) -> Box<dyn Controller>;
 }
 
-const BASE_DATAGRAM_SIZE: u64 = 1200;
+const BASE_DATAGRAM_SIZE: u64 = 1400; // 如果mtu没有更新，那么我们的算法会依据这个来计算。 此时，如果最小数据包大于BASE_DATAGRAM_SIZE，就会导致无法发送数据包，继而导致连接断开。
