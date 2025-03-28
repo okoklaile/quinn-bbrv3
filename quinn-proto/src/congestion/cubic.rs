@@ -98,6 +98,7 @@ impl Controller for Cubic {
         bytes: u64,
         app_limited: bool,
         rtt: &RttEstimator,
+        _packet_number: u64,
     ) {
         if app_limited
             || self
@@ -168,6 +169,7 @@ impl Controller for Cubic {
         sent: Instant,
         is_persistent_congestion: bool,
         _lost_bytes: u64,
+        _packet_number: u64
     ) {
         if self
             .recovery_start_time

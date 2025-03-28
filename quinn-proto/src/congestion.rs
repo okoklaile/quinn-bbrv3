@@ -8,11 +8,12 @@ use std::sync::Arc;
 mod bbr;
 mod cubic;
 mod new_reno;
+mod bbr3;
 
 pub use bbr::{Bbr, BbrConfig};
 pub use cubic::{Cubic, CubicConfig};
 pub use new_reno::{NewReno, NewRenoConfig};
-
+pub use bbr3::{Bbr3, Bbr3Config};
 /// Common interface for different congestion controllers
 pub trait Controller: Send + Sync {
     /// One or more packets were just sent
@@ -24,6 +25,18 @@ pub trait Controller: Send + Sync {
     /// `app_limited` indicates whether the connection was blocked on outgoing
     /// application data prior to receiving these acknowledgements.
     #[allow(unused_variables)]
+    fn begin_ack(&mut self, now: Instant){
+    }
+    /// Called when a packet has been acknowledged
+    ///
+    /// # Parameters
+    /// * `now` - Current time
+    /// * `sent` - When the acknowledged packet was sent
+    /// * `bytes` - Number of bytes that were acknowledged
+    /// * `app_limited` - Whether the connection was application-limited
+    /// * `rtt` - Round-trip time estimator
+    /// * `packet_number` - The packet number that was acknowledged
+    #[allow(unused_variables)]
     fn on_ack(
         &mut self,
         now: Instant,
@@ -31,6 +44,7 @@ pub trait Controller: Send + Sync {
         bytes: u64,
         app_limited: bool,
         rtt: &RttEstimator,
+        packet_number: u64,
     ) {
     }
 
@@ -57,6 +71,7 @@ pub trait Controller: Send + Sync {
         sent: Instant,
         is_persistent_congestion: bool,
         lost_bytes: u64,
+        packet_number: u64
     );
 
     /// The known MTU for the current network path has been updated

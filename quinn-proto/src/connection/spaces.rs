@@ -274,6 +274,44 @@ impl IndexMut<SpaceId> for [PacketSpace; 3] {
     }
 }
 
+/* //新内容
+#[derive(Debug, Default, Clone)]
+pub(super) struct RateSamplePacketState {
+    /// P.delivered: C.delivered when the packet was sent from transport connection C.
+    pub delivered: u64,
+
+    /// P.delivered_time: C.delivered_time when the packet was sent.
+    pub delivered_time: Option<Instant>,
+
+    /// P.first_sent_time: C.first_sent_time when the packet was sent.
+    pub first_sent_time: Option<Instant>,
+
+    /// P.is_app_limited: true if C.app_limited was non-zero when the packet was sent, else false.
+    pub is_app_limited: bool,
+
+    /// packet.tx_in_flight: The volume of data that was estimated to be in flight at the time of the transmission of the packet.
+    pub tx_in_flight: u64,
+
+    /// packet.lost: The volume of data that was declared lost on transmission.
+    pub lost: u64,
+
+}
+
+//新内容
+#[derive(Debug, Clone)]
+pub(super) struct PacketSent{
+/// The time the packet was sent.
+pub time_sent: Instant,//用到了
+pub pkt_num: u64,//用到了
+pub acked_time: Option<Instant>,//用到了
+/// The number of bytes sent in the packet, not including UDP or IP overhead,
+/// but including QUIC framing overhead.
+pub sent_size: usize,//用到了
+
+/// Snapshot of the current delivery information.
+pub rate_sample_state: RateSamplePacketState,//用到了
+}  */
+
 /// Represents one or more packets subject to retransmission
 #[derive(Debug, Clone)]
 pub(super) struct SentPacket {

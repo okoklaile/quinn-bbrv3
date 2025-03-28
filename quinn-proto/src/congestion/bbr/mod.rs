@@ -398,6 +398,7 @@ impl Controller for Bbr {
         bytes: u64,
         app_limited: bool,
         rtt: &RttEstimator,
+        _packet_number: u64,
     ) {
         self.max_bandwidth
             .on_ack(now, sent, bytes, self.round_count, app_limited);
@@ -465,6 +466,7 @@ impl Controller for Bbr {
         _sent: Instant,
         _is_persistent_congestion: bool,
         lost_bytes: u64,
+        _packet_number: u64
     ) {
         self.loss_state.lost_bytes += lost_bytes;
     }
