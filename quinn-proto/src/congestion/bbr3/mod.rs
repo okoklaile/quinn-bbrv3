@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 //use log::*;
 use rand::Rng;
-
+use tracing_subscriber;
 mod  min_max;
 mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
@@ -2168,21 +2168,34 @@ impl Bbr3 {
     }
 
     fn window(&self) -> u64 {
-        self.cwnd.max(self.config.min_cwnd)
+        let cwnd = self.cwnd.max(self.config.min_cwnd);
+        tracing::info!(
+            "BBR3 cwnd={} bytes, min_cwnd={} bytes", 
+            cwnd, 
+            self.config.min_cwnd
+        );
+        cwnd
     }
     
     fn pacing_window(&self) -> u64 {
         let min_rtt_secs = self.min_rtt.as_secs_f64();
-        if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
+        let result = if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
             self.cwnd as u64
-        }
-        else {
+        } else {
             let mut pacwid = (self.pacing_rate as f64 * min_rtt_secs) as u64;
             if pacwid < (0.2 * self.cwnd as f64) as u64 {
                 pacwid = self.cwnd;
             }
             pacwid
-        }
+        };
+        
+        tracing::info!(
+            "BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", 
+            result,
+            self.pacing_rate,
+            self.min_rtt
+        );
+        result
     }
 
     fn clone_box(&self) -> Box<dyn Controller> {
