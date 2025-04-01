@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use rand::Rng;
 
 mod  min_max;
-mod delivery_rate;
+mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
 use crate::congestion::bbr3::delivery_rate::DeliveryRateEstimator;//这个是更新rate_sample_state的
 //use super::{CongestionController, CongestionStats};//换成quinn的
@@ -2021,6 +2021,7 @@ impl Bbr3 {
     }
  } */
  impl Controller for Bbr3 {
+    
     fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
         let mut packet_info = PacketInfo {
            time_sent: now,
@@ -2168,6 +2169,20 @@ impl Bbr3 {
 
     fn window(&self) -> u64 {
         self.cwnd.max(self.config.min_cwnd)
+    }
+    
+    fn pacing_window(&self) -> u64 {
+        let min_rtt_secs = self.min_rtt.as_secs_f64();
+        if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
+            self.cwnd as u64
+        }
+        else {
+            let mut pacwid = (self.pacing_rate as f64 * min_rtt_secs) as u64;
+            if pacwid < (0.2 * self.cwnd as f64) as u64 {
+                pacwid = self.cwnd;
+            }
+            pacwid
+        }
     }
 
     fn clone_box(&self) -> Box<dyn Controller> {
