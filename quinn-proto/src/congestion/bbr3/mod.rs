@@ -2169,11 +2169,12 @@ impl Bbr3 {
 
     fn window(&self) -> u64 {
         let cwnd = self.cwnd.max(self.config.min_cwnd);
-        tracing::info!(
+  /*       tracing::info!(
             "BBR3 cwnd={} bytes, min_cwnd={} bytes", 
             cwnd, 
             self.config.min_cwnd
-        );
+        ); */
+        println!("BBR3 cwnd={} bytes, min_cwnd={} bytes", cwnd, self.config.min_cwnd);
         cwnd
     }
     
@@ -2189,12 +2190,13 @@ impl Bbr3 {
             pacwid
         };
         
-        tracing::info!(
+/*         tracing::info!(
             "BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", 
             result,
             self.pacing_rate,
             self.min_rtt
-        );
+        ); */
+        println!("BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", result, self.pacing_rate, self.min_rtt);
         result
     }
 
