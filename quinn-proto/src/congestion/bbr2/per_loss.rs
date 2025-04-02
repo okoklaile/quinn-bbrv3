@@ -118,7 +118,7 @@ pub fn bbr2_update_latest_delivery_signals(r: &mut Bbr2) {
     bbr.loss_round_start = false;
     // bbr.bw_latest = bbr.bw_latest.max(r.delivery_rate.sample_delivery_rate());
     bbr.bw_latest = bbr.bw_latest.max(r.max_bandwidth.get_latest_bw());
-    bbr.bw_latest = r.max_bandwidth.get_estimate();
+    // bbr.bw_latest = r.max_bandwidth.get_estimate();
     // bbr.inflight_latest =
     //     bbr.inflight_latest.max(r.delivery_rate.sample_delivered());
     bbr.inflight_latest = bbr.inflight_latest.max(r.in_flight_size);
@@ -139,7 +139,7 @@ pub fn bbr2_advance_latest_delivery_signals(r: &mut Bbr2) {
     if bbr.loss_round_start {
         // bbr.bw_latest = r.delivery_rate.sample_delivery_rate();
         bbr.bw_latest = r.max_bandwidth.get_latest_bw();
-        bbr.bw_latest = r.max_bandwidth.get_estimate();
+        // bbr.bw_latest = r.max_bandwidth.get_estimate();
         // bbr.inflight_latest = r.delivery_rate.sample_delivered();
         bbr.inflight_latest = r.in_flight_size;
     }
