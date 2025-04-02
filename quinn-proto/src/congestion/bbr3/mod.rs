@@ -2174,7 +2174,7 @@ impl Bbr3 {
             cwnd, 
             self.config.min_cwnd
         ); */
-        println!("BBR3 cwnd={} bytes, min_cwnd={} bytes", cwnd, self.config.min_cwnd);
+        //println!("BBR3 cwnd={} bytes, min_cwnd={} bytes", cwnd, self.config.min_cwnd);
         cwnd
     }
     
@@ -2196,7 +2196,7 @@ impl Bbr3 {
             self.pacing_rate,
             self.min_rtt
         ); */
-        println!("BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", result, self.pacing_rate, self.min_rtt);
+        //println!("BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", result, self.pacing_rate, self.min_rtt);
         result
     }
 
