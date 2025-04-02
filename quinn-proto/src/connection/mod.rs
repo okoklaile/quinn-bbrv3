@@ -1377,7 +1377,9 @@ impl Connection {
                 false
             }
         };
-
+        if space != SpaceId::Initial && space != SpaceId::Handshake {
+            self.path.congestion.begin_ack(now);
+        }
         // Avoid DoS from unreasonably huge ack ranges by filtering out just the new acks.
         let mut newly_acked = ArrayRangeSet::new();
         for range in ack.iter() {
@@ -1494,7 +1496,7 @@ impl Connection {
                 self.stats.path.congestion_events += 1;
                 self.path
                     .congestion
-                    .on_congestion_event(now, largest_sent_time, false, 0);
+                    .on_congestion_event(now, largest_sent_time, false, 0,0);
             }
         }
     }
@@ -1512,6 +1514,7 @@ impl Connection {
                 info.size.into(),
                 self.app_limited,
                 &self.path.rtt,
+                pn,
             );
         }
 
@@ -1695,6 +1698,7 @@ impl Connection {
                     largest_lost_sent,
                     in_persistent_congestion,
                     size_of_lost_packets,
+                    largest_lost,
                 );
             }
         }

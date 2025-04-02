@@ -48,6 +48,7 @@ use std::time::{Duration, Instant};
 use crate::congestion::bbr2::bw_estimation::BandwidthEstimation;
 use crate::congestion::bbr2::min_max::MinMax;
 use crate::connection::RttEstimator;
+use crate::packet;
 use super::{Controller, ControllerFactory, BASE_DATAGRAM_SIZE};
 
 mod bw_estimation;
@@ -60,7 +61,7 @@ mod per_transmit;
 
 #[derive(Debug, Clone)]
 pub struct Bbr2 {
-    config: Arc<BbrConfig2>,
+    config: Arc<Bbr2Config>,
     current_mtu: u64,
     max_bandwidth: BandwidthEstimation,
     acked_bytes: u64,
@@ -111,7 +112,7 @@ pub struct Bbr2 {
 }
 
 impl Bbr2 {
-    pub fn new(config: Arc<BbrConfig2>, current_mtu: u16) -> Self {
+    pub fn new(config: Arc<Bbr2Config>, current_mtu: u16) -> Self {
         let initial_window: u64 = config.initial_window;
         let mut bbr2 = Self  {
             config,
@@ -302,6 +303,7 @@ impl Controller for Bbr2 {
         bytes: u64,
         app_limited: bool,
         rtt: &RttEstimator,
+        packet_number: u64,
     ) {
         // eprintln!("on_ack start");
         self.max_bandwidth
@@ -379,13 +381,14 @@ impl Controller for Bbr2 {
         self.loss_state.reset();
         // eprintln!("on_end_acks over");
     }
-
+    fn begin_ack(&mut self, now: Instant) {}
     fn on_congestion_event(
         &mut self,
         now: Instant,
         _sent: Instant,
         _is_persistent_congestion: bool,
         lost_bytes: u64,
+        packet_number: u64,
     ) {
         // eprintln!("on_congestion_event start");
         self.loss_state.lost_bytes += lost_bytes;
@@ -454,11 +457,11 @@ impl Controller for Bbr2 {
 
 /// Configuration for the [`Bbr`] congestion controller
 #[derive(Debug, Clone)]
-pub struct BbrConfig2 {
+pub struct Bbr2Config {
     initial_window: u64,
 }
 
-impl BbrConfig2 {
+impl Bbr2Config {
     /// Default limit on the amount of outstanding data in bytes.
     ///
     /// Recommended value: `min(10 * max_datagram_size, max(2 * max_datagram_size, 14720))`
@@ -469,7 +472,7 @@ impl BbrConfig2 {
 }
 // Do not allow initial congestion window to be greater than 200 packets.
 const K_MAX_INITIAL_CONGESTION_WINDOW: u64 = 200;
-impl Default for BbrConfig2 {
+impl Default for Bbr2Config {
     fn default() -> Self {
         Self {
             initial_window: K_MAX_INITIAL_CONGESTION_WINDOW * BASE_DATAGRAM_SIZE,
@@ -477,7 +480,7 @@ impl Default for BbrConfig2 {
     }
 }
 
-impl ControllerFactory for BbrConfig2 {
+impl ControllerFactory for Bbr2Config {
     fn build(self: Arc<Self>, _now: Instant, current_mtu: u16) -> Box<dyn Controller> {
         Box::new(Bbr2::new(self, current_mtu))
     }
