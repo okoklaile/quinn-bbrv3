@@ -69,7 +69,7 @@ pub(super) struct RateSamplePacketState {
     pub first_sent_time: Option<Instant>,
 
     /// P.is_app_limited: true if C.app_limited was non-zero when the packet was sent, else false.
-    pub is_app_limited: bool,
+    //pub is_app_limited: bool,
 
     /// packet.tx_in_flight: The volume of data that was estimated to be in flight at the time of the transmission of the packet.
     pub tx_in_flight: u64,
@@ -133,12 +133,13 @@ impl Bbr3Config {
     
 }
 const INITIAL_RTT: Duration = Duration::from_millis(333);
-const DEFAULT_SEND_UDP_PAYLOAD_SIZE: usize = 1200;
+const DEFAULT_SEND_UDP_PAYLOAD_SIZE: usize = 1400;
+
 impl Default for Bbr3Config {
     fn default() -> Self {
         Self {
             min_cwnd: 4 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
-            initial_cwnd: 80 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
+            initial_cwnd: 200 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
             initial_rtt: Some(INITIAL_RTT),
             max_datagram_size: DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
             full_bw_count_threshold: FULL_BW_COUNT_THRESHOLD,
@@ -154,7 +155,7 @@ impl Default for Bbr3Config {
 }
 impl ControllerFactory for Bbr3Config {
     fn build(self: Arc<Self>, _now: Instant, _current_mtu: u16) -> Box<dyn Controller> {
-        Box::new(Bbr3::new(self))
+        Box::new(Bbr3::new(self,_current_mtu))
     }
 }
 /// A constant specifying the minimum gain value
@@ -605,10 +606,14 @@ pub struct Bbr3 {
 
     /// Time of the last recovery event starts.
     recovery_epoch_start: Option<Instant>,
+    // Whether the flow is currently app-limited.
+    app_limited : bool,
+    // Time of the last app-limited event starts.
+    //current_mtu: u64,
 }
 
 impl Bbr3 {
-    pub (super)fn new(config: Arc<Bbr3Config>) -> Self {
+    pub (super)fn new(config: Arc<Bbr3Config>,_current_mtu: u16) -> Self {
         let now = Instant::now();
         let initial_cwnd = config.initial_cwnd;
 
@@ -720,6 +725,10 @@ impl Bbr3 {
             loss_events_in_round: 0,
 
             recovery_epoch_start: Some(now),
+
+            app_limited : false,
+
+            //current_mtu: current_mtu as u64,
         };
         bbr3.init();
 
@@ -951,10 +960,11 @@ impl Bbr3 {
     }
 
     fn check_startup_full_bandwidth(&mut self) {
+        //self.update_max_bw();
         // No need to check for a full pipe now.
         if self.is_filled_pipe()
             || !self.is_round_start()
-            || self.delivery_rate_estimator.is_sample_app_limited()
+            || self.is_app_limited()
         {
             return;
         }
@@ -1278,7 +1288,7 @@ impl Bbr3 {
     }
 
     fn is_app_limited(&self) -> bool {
-        self.delivery_rate_estimator.is_app_limited()
+        self.app_limited
     }
 
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
@@ -1304,7 +1314,10 @@ impl Bbr3 {
     }
 
     fn check_probe_rtt(&mut self, now: Instant, bytes_in_flight: u64) {
-        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart {
+        /* if self.state == State::Startup {
+            return;
+        } */
+        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart{
             self.enter_probe_rtt();
 
             // Remember the last-known good cwnd and restore it when exiting probe-rtt.
@@ -1363,7 +1376,7 @@ impl Bbr3 {
     }
 
     fn mark_connection_app_limited(&mut self) {
-        self.delivery_rate_estimator.set_app_limited(true);
+        self.app_limited = true;
     }
 
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-exiting-probertt>.
@@ -1545,8 +1558,9 @@ impl Bbr3 {
         // Inflight at transmit.
         self.ack_state.tx_in_flight = packet.rate_sample_state.tx_in_flight;
         self.ack_state.lost = self.stats.bytes_lost_in_total - packet.rate_sample_state.lost;
-        self.delivery_rate_estimator
-            .set_app_limited(packet.rate_sample_state.is_app_limited);
+        /* self.delivery_rate_estimator
+            .set_app_limited(packet.rate_sample_state.is_app_limited); */
+        self.app_limited=true;
 
         if self.is_inflight_too_high() {
             self.ack_state.tx_in_flight = self.inflight_hi_from_lost_packet(packet);
@@ -1620,7 +1634,7 @@ impl Bbr3 {
     // Update (most of) our congestion signals: track the recent rate and volume of
     // delivered data, presence of loss.
     fn update_congestion_signals(&mut self) {
-        self.update_max_bw();
+        //self.update_max_bw();
 
         if self.ack_state.lost > 0 {
             self.loss_in_round = true;
@@ -1781,6 +1795,7 @@ impl Bbr3 {
 
         let mut inflight = self.bdp_multiple(self.max_bw, self.cwnd_gain);
 
+        //let mut inflight = self.bdp_multiple(13107200, self.cwnd_gain);
         inflight = inflight.saturating_add(self.extra_acked_filter.get());
 
         self.max_inflight = self.quantization_budget(inflight);
@@ -2040,7 +2055,7 @@ impl Bbr3 {
                delivered: 0,
                delivered_time: None,
                first_sent_time: None,
-               is_app_limited: false,
+               
                tx_in_flight: 0,
                lost: 0,
             },
@@ -2077,6 +2092,7 @@ impl Bbr3 {
         _rtt: &RttEstimator,
         packet_number: u64,
     ) {
+        //self.app_limited = app_limited;
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
             packet.time_acked = Some(now);
         
@@ -2110,12 +2126,13 @@ impl Bbr3 {
             .max(packet.rate_sample_state.delivered);
         }
         self.update_max_bw();
+        
         info!(target : "quinn_test",
-              "max_bw={:.4},bw={:.4},pacingrate={:.4},state={:?}",
-              (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
-              (self.bw as f64 * 8.0)/(1024.0*1024.0),
-              (self.pacing_rate as f64 * 8.0)/(1024.0*1024.0),
+              "cwnd={:.4},pacing_window={:.4},state={:?},max_bw={:.4}",
+              (self.window() as f64 * 8.0)/(1024.0*1024.0),
+              (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
               self.state,
+              (self.max_bw as f64 * 8.0)/(1024.0*1024.0)
             )
     }
 
@@ -2123,9 +2140,10 @@ impl Bbr3 {
         &mut self,
         _now: Instant,
         _in_flight: u64,
-        _app_limited: bool,
+        app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
+        self.app_limited = app_limited;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
         // Generate rate sample.
@@ -2180,30 +2198,27 @@ impl Bbr3 {
     }
 
     fn on_mtu_update(&mut self, _new_mtu: u16) {
-
+        
+        //self.config.min_cwnd = calculate_min_window(new_mtu as u64);
+        
+        
     }
 
     fn window(&self) -> u64 {
-        //let cwnd = 
+        
         self.cwnd.max(self.config.min_cwnd)
-  /*       tracing::info!(
-            "BBR3 cwnd={} bytes, min_cwnd={} bytes", 
-            cwnd, 
-            self.config.min_cwnd
-        ); */
-        //println!("BBR3 cwnd={} bytes, min_cwnd={} bytes", cwnd, self.config.min_cwnd);
-       // cwnd
+        
     }
     
     fn pacing_window(&self) -> u64 {
         let min_rtt_secs = self.min_rtt.as_secs_f64();
         //let result = 
         if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
-            self.cwnd as u64
+            self.cwnd.max(self.config.min_cwnd) as u64
         } else {
             let mut pacwid = (self.pacing_rate as f64 * min_rtt_secs) as u64;
             if pacwid < (0.2 * self.cwnd as f64) as u64 {
-                pacwid = self.cwnd;
+                pacwid = self.cwnd.max(self.config.min_cwnd);
             }
             pacwid
         }
@@ -2230,5 +2245,6 @@ impl Bbr3 {
         self
     }
 }
+
 
 

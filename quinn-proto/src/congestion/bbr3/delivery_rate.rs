@@ -34,7 +34,7 @@ struct RateSample {
 
     /// rs.is_app_limited: The P.is_app_limited from the most recent packet delivered;
     /// indicates whether the rate sample is application-limited.
-    is_app_limited: bool,
+    //is_app_limited: bool,
 
     /// rs.interval: The length of the sampling interval.
     interval: Duration,
@@ -77,7 +77,7 @@ pub(super) struct DeliveryRateEstimator {
 
     /// C.app_limited: The index of the last transmitted packet marked as application-limited,
     /// or 0 if the connection is not currently application-limited.
-    last_app_limited_pkt_num: u64,
+    //last_app_limited_pkt_num: u64,
 
     /// Record largest acked packet number to determine if app-limited state exits.
     largest_acked_pkt_num: u64,
@@ -108,7 +108,7 @@ impl DeliveryRateEstimator {
         packet.rate_sample_state.first_sent_time = Some(self.first_sent_time);
         packet.rate_sample_state.delivered_time = Some(self.delivered_time);
         packet.rate_sample_state.delivered = self.delivered;
-        packet.rate_sample_state.is_app_limited = self.is_app_limited();
+        //packet.rate_sample_state.is_app_limited = self.is_app_limited();
         packet.rate_sample_state.tx_in_flight = bytes_in_flight;
         packet.rate_sample_state.lost = bytes_lost;
 
@@ -134,7 +134,7 @@ impl DeliveryRateEstimator {
         {
             self.rate_sample.prior_delivered = packet.rate_sample_state.delivered;
             self.rate_sample.prior_time = packet.rate_sample_state.delivered_time;
-            self.rate_sample.is_app_limited = packet.rate_sample_state.is_app_limited;
+            //self.rate_sample.is_app_limited = packet.rate_sample_state.is_app_limited;
 
             self.first_sent_time = packet.time_sent;
         }
@@ -175,9 +175,9 @@ impl DeliveryRateEstimator {
         // It's done before generate_rate_sample is called.
 
         // Clear app-limited field if bubble is ACKed and gone.
-        if self.is_app_limited() && self.largest_acked_pkt_num > self.last_app_limited_pkt_num {
+        /* if self.is_app_limited() && self.largest_acked_pkt_num > self.last_app_limited_pkt_num {
             self.set_app_limited(false);
-        }
+        } */
 
         // Nothing delivered on this ACK.
         if self.rate_sample.prior_time.is_none() {
@@ -203,19 +203,19 @@ impl DeliveryRateEstimator {
     }
 
     /// Set app limited status and record the latest packet num as end of app limited mode.
-    pub(super) fn set_app_limited(&mut self, is_app_limited: bool) {
+    /* pub(super) fn set_app_limited(&mut self, is_app_limited: bool) {
         self.last_app_limited_pkt_num = if is_app_limited {
             self.last_sent_pkt_num.max(1)
         } else {
             0
         }
-    }
+    } */
 
     /// Check if application limited.
     /// See <https://datatracker.ietf.org/doc/html/draft-cheng-iccrg-delivery-rate-estimation-02#section-3.4>.
-    pub (super)fn is_app_limited(&self) -> bool {
+    /* pub (super)fn is_app_limited(&self) -> bool {
         self.last_app_limited_pkt_num != 0
-    }
+    } */
 
     /// C.delivered.
     pub(super) fn delivered(&self) -> u64 {
@@ -242,10 +242,10 @@ impl DeliveryRateEstimator {
         self.rate_sample.rtt
     }
 
-    /// Check whether the current rate sample is application limited.
-    pub (super)fn is_sample_app_limited(&self) -> bool {
+    // Check whether the current rate sample is application limited.
+    /* pub (super)fn is_sample_app_limited(&self) -> bool {
         self.rate_sample.is_app_limited
-    }
+    } */
 }
 
 impl Default for DeliveryRateEstimator {
@@ -255,7 +255,7 @@ impl Default for DeliveryRateEstimator {
             delivered: 0,
             delivered_time: now,
             first_sent_time: now,
-            last_app_limited_pkt_num: 0,
+            
             largest_acked_pkt_num: 0,
             last_sent_pkt_num: 0,
             rate_sample: RateSample::default(),

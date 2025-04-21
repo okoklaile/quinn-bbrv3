@@ -10,7 +10,7 @@ use crate::congestion::bbr::min_max::MinMax;
 use crate::connection::RttEstimator;
 
 use super::{Controller, ControllerFactory, BASE_DATAGRAM_SIZE};
-
+use log::info;
 mod bw_estimation;
 mod min_max;
 
@@ -406,6 +406,7 @@ impl Controller for Bbr {
         if self.is_min_rtt_expired(now, app_limited) || self.min_rtt > rtt.min() {
             self.min_rtt = rtt.min();
         }
+        
     }
 
     fn on_end_acks(
@@ -458,6 +459,13 @@ impl Controller for Bbr {
 
         self.prev_in_flight_count = in_flight;
         self.loss_state.reset();
+        info!(
+            target: "quinn_test",
+            " app_limited={},window={:.4},state={:?}",
+            app_limited,
+            (self.cwnd as f64 *8.0)/(1000.0*1000.0),
+            self.mode
+        )
     }
 
     fn on_congestion_event(
@@ -476,6 +484,11 @@ impl Controller for Bbr {
         self.min_cwnd = calculate_min_window(self.current_mtu);
         self.init_cwnd = self.config.initial_window.max(self.min_cwnd);
         self.cwnd = self.cwnd.max(self.min_cwnd);
+        /* info!(
+            target: "quinn_test",
+            "mtu={}",
+            self.current_mtu
+        ) */
     }
 
     fn window(&self) -> u64 {
