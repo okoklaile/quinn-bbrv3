@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use super::{Controller, ControllerFactory, BASE_DATAGRAM_SIZE};
 use crate::connection::RttEstimator;
-use crate::packet;
+
 use std::cmp;
 
 /// CUBIC Constants.
@@ -99,7 +99,7 @@ impl Controller for Cubic {
         bytes: u64,
         app_limited: bool,
         rtt: &RttEstimator,
-        packet_number: u64,
+        _packet_number: u64,
     ) {
         if app_limited
             || self
@@ -170,7 +170,7 @@ impl Controller for Cubic {
         sent: Instant,
         is_persistent_congestion: bool,
         _lost_bytes: u64,
-        packet_number: u64,
+        _packet_number: u64,
     ) {
         if self
             .recovery_start_time

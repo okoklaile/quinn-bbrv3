@@ -33,7 +33,8 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 //use log::*;
 use rand::Rng;
-use tracing_subscriber;
+use log::info;
+
 mod  min_max;
 mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
@@ -1404,6 +1405,13 @@ impl Bbr3 {
             self.max_bw_filter.bw[1] = bw.max(self.max_bw_filter.bw[1]);
             self.max_bw = self.max_bw_filter.max_bw();
         }
+        /* info!(target: "quinn_test",
+        "startup_debug: bw={:.2} Mbps, max_bw={:.2} Mbps, is_app_limited={}, round_count={}", 
+        (bw as f64 * 8.0)/(1024.0*1024.0),
+        (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
+        self.is_app_limited(),
+        self.round.round_count
+            ); */
     }
 
     fn advance_max_bw_filter(&mut self) {
@@ -2101,6 +2109,14 @@ impl Bbr3 {
             .packet_delivered
             .max(packet.rate_sample_state.delivered);
         }
+        self.update_max_bw();
+        info!(target : "quinn_test",
+              "max_bw={:.4},bw={:.4},pacingrate={:.4},state={:?}",
+              (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
+              (self.bw as f64 * 8.0)/(1024.0*1024.0),
+              (self.pacing_rate as f64 * 8.0)/(1024.0*1024.0),
+              self.state,
+            )
     }
 
     fn on_end_acks(

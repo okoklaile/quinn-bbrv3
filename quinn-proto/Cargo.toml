@@ -24,6 +24,7 @@ platform-verifier = ["dep:rustls-platform-verifier"]
 log = ["tracing/log"]
 
 [dependencies]
+log = {workspace = true}
 tracing-subscriber = "0.3"
 arbitrary = { workspace = true, optional = true }
 bytes = { workspace = true }

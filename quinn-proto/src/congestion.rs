@@ -8,13 +8,13 @@ use std::time::Instant;
 mod bbr;
 mod cubic;
 mod new_reno;
-mod bbr2;
+
 mod bbr3;
 
 pub use bbr::{Bbr, BbrConfig};
 pub use cubic::{Cubic, CubicConfig};
 pub use new_reno::{NewReno, NewRenoConfig};
-pub use  bbr2::{Bbr2, Bbr2Config};
+
 pub use bbr3::{Bbr3, Bbr3Config};
 /// Common interface for different congestion controllers
 pub trait Controller: Send + Sync {
@@ -48,7 +48,14 @@ pub trait Controller: Send + Sync {
         largest_packet_num_acked: Option<u64>,
     ) {
     }
-    fn begin_ack(&mut self, now: Instant) {}
+    /// Called at the start of processing a batch of acknowledgments
+    /// 
+    /// This method allows the congestion controller to initialize or reset its state
+    /// before processing multiple acknowledgments that arrived together.
+    /// 
+    /// # Arguments
+    /// * `now` - The current time when starting to process the acknowledgment batch
+    fn begin_ack(&mut self, _now: Instant) {}
     /// Packets were deemed lost or marked congested
     ///
     /// `in_persistent_congestion` indicates whether all packets sent within the persistent
