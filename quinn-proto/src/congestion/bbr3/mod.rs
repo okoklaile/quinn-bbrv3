@@ -1317,7 +1317,7 @@ impl Bbr3 {
         /* if self.state == State::Startup {
             return;
         } */
-        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart{
+        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart &&!self.is_app_limited(){
             self.enter_probe_rtt();
 
             // Remember the last-known good cwnd and restore it when exiting probe-rtt.
@@ -2092,7 +2092,8 @@ impl Bbr3 {
         _rtt: &RttEstimator,
         packet_number: u64,
     ) {
-        self.app_limited = app_limited;
+        //self.app_limited = app_limited;
+        //self.app_limited = true;
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
             packet.time_acked = Some(now);
         
@@ -2127,23 +2128,18 @@ impl Bbr3 {
         }
         self.update_max_bw();
         
-        info!(target : "quinn_test",
-              "cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4}",
-              (self.window() as f64 * 8.0)/(1024.0*1024.0),
-              (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
-              self.state,
-              (self.bw as f64 * 8.0)/(1024.0*1024.0)
-            )
+        
     }
 
     fn on_end_acks(
         &mut self,
         _now: Instant,
         _in_flight: u64,
-        _app_limited: bool,
+        app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
-        //self.app_limited = app_limited;
+        self.app_limited = app_limited;
+        // /self.app_limited = true;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
         // Generate rate sample.
@@ -2158,6 +2154,14 @@ impl Bbr3 {
         self.update_model_and_state(self.ack_state.now, bytes_in_flight);
         self.update_gains();
         self.update_control_parameters();
+        info!(target : "quinn_test",
+              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4}",
+              self.app_limited,
+              (self.window() as f64 * 8.0)/(1024.0*1024.0),
+              (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
+              self.state,
+              (self.bw as f64 * 8.0)/(1024.0*1024.0)
+            )
     }
 
     fn on_congestion_event(
