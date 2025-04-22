@@ -10,7 +10,7 @@ use crate::congestion::bbr::min_max::MinMax;
 use crate::connection::RttEstimator;
 
 use super::{Controller, ControllerFactory, BASE_DATAGRAM_SIZE};
-use log::info;
+//use log::info;
 mod bw_estimation;
 mod min_max;
 
@@ -459,13 +459,13 @@ impl Controller for Bbr {
 
         self.prev_in_flight_count = in_flight;
         self.loss_state.reset();
-        info!(
+        /* info!(
             target: "quinn_test",
             " app_limited={},window={:.4},state={:?}",
             app_limited,
             (self.cwnd as f64 *8.0)/(1000.0*1000.0),
             self.mode
-        )
+        ) */
     }
 
     fn on_congestion_event(

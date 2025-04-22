@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 //use log::*;
 use rand::Rng;
-use log::info;
+//use log::info;
 
 mod  min_max;
 mod  delivery_rate;
@@ -2127,13 +2127,13 @@ impl Bbr3 {
         }
         self.update_max_bw();
         
-        info!(target : "quinn_test",
+        /* info!(target : "quinn_test",
               "cwnd={:.4},pacing_window={:.4},state={:?},max_bw={:.4}",
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
               self.state,
               (self.max_bw as f64 * 8.0)/(1024.0*1024.0)
-            )
+            ) */
     }
 
     fn on_end_acks(
