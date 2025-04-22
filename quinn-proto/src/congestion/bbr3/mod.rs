@@ -33,7 +33,7 @@ use std::time::{Duration, Instant};
 use std::collections::HashMap;
 //use log::*;
 use rand::Rng;
-//use log::info;
+use log::info;
 
 mod  min_max;
 mod  delivery_rate;
@@ -2088,11 +2088,11 @@ impl Bbr3 {
         now: Instant,
         _sent: Instant,
         _bytes: u64,
-        _app_limited: bool,
+        app_limited: bool,
         _rtt: &RttEstimator,
         packet_number: u64,
     ) {
-        //self.app_limited = app_limited;
+        self.app_limited = app_limited;
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
             packet.time_acked = Some(now);
         
@@ -2127,23 +2127,23 @@ impl Bbr3 {
         }
         self.update_max_bw();
         
-        /* info!(target : "quinn_test",
-              "cwnd={:.4},pacing_window={:.4},state={:?},max_bw={:.4}",
+        info!(target : "quinn_test",
+              "cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4}",
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
               self.state,
-              (self.max_bw as f64 * 8.0)/(1024.0*1024.0)
-            ) */
+              (self.bw as f64 * 8.0)/(1024.0*1024.0)
+            )
     }
 
     fn on_end_acks(
         &mut self,
         _now: Instant,
         _in_flight: u64,
-        app_limited: bool,
+        _app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
-        self.app_limited = app_limited;
+        //self.app_limited = app_limited;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
         // Generate rate sample.
