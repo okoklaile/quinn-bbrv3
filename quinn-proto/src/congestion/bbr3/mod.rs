@@ -84,7 +84,7 @@ pub(super) struct RateSamplePacketState {
 #[derive(Debug)]
 pub struct Bbr3Config {
     /// Minimal congestion window in bytes.
-    min_cwnd: u64,
+    //min_cwnd: u64,
 
     /// Initial congestion window in bytes.
     initial_cwnd: u64,
@@ -138,7 +138,7 @@ const DEFAULT_SEND_UDP_PAYLOAD_SIZE: usize = 1400;
 impl Default for Bbr3Config {
     fn default() -> Self {
         Self {
-            min_cwnd: 4 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
+            //min_cwnd: 4 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
             initial_cwnd: 200 * DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
             initial_rtt: Some(INITIAL_RTT),
             max_datagram_size: DEFAULT_SEND_UDP_PAYLOAD_SIZE as u64,
@@ -417,6 +417,8 @@ pub (super)struct CongestionStats {
 /// See <https://datatracker.ietf.org/doc/html/draft-cardwell-iccrg-bbr-congestion-control-02>.
 #[derive(Debug,Clone)]
 pub struct Bbr3 {
+    init_cwnd: u64,
+    min_cwnd: u64,
     sent_packets: HashMap<u64, PacketInfo>,
     /// Configurable parameters.
     config: Arc<Bbr3Config>,
@@ -613,11 +615,16 @@ pub struct Bbr3 {
 }
 
 impl Bbr3 {
-    pub (super)fn new(config: Arc<Bbr3Config>,_current_mtu: u16) -> Self {
+    pub (super)fn new(config: Arc<Bbr3Config>,current_mtu: u16) -> Self {
         let now = Instant::now();
         let initial_cwnd = config.initial_cwnd;
 
         let mut bbr3 = Self {
+           
+            init_cwnd: initial_cwnd,
+
+            min_cwnd: current_mtu as u64 * 4,
+
             sent_packets: HashMap::new(),
 
             config,
@@ -1214,7 +1221,7 @@ impl Bbr3 {
 
         self.inflight_hi
             .saturating_sub(headroom)
-            .max(self.config.min_cwnd)
+            .max(self.min_cwnd)
     }
 
     /// Raise inflight_hi slope if appropriate.
@@ -1294,7 +1301,8 @@ impl Bbr3 {
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
     fn update_min_rtt(&mut self, now: Instant) {
         let sample_rtt = self.delivery_rate_estimator.sample_rtt();
-        self.probe_rtt_expired = now.saturating_duration_since(self.probe_rtt_min_stamp)
+        self.probe_rtt_expired = !self.app_limited 
+        && now.saturating_duration_since(self.probe_rtt_min_stamp)
             > self.config.probe_rtt_interval;
 
         if !sample_rtt.is_zero()
@@ -1304,8 +1312,7 @@ impl Bbr3 {
             self.probe_rtt_min_stamp = now;
         }
 
-        let min_rtt_expired =
-            now.saturating_duration_since(self.min_rtt_stamp) > MIN_RTT_FILTER_LEN;
+        let min_rtt_expired =now.saturating_duration_since(self.min_rtt_stamp) > MIN_RTT_FILTER_LEN;
 
         if self.probe_rtt_min_delay < self.min_rtt || min_rtt_expired {
             self.min_rtt = self.probe_rtt_min_delay;
@@ -1317,7 +1324,7 @@ impl Bbr3 {
         /* if self.state == State::Startup {
             return;
         } */
-        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart &&!self.is_app_limited(){
+        if self.state != State::ProbeRTT && self.probe_rtt_expired && !self.idle_restart {
             self.enter_probe_rtt();
 
             // Remember the last-known good cwnd and restore it when exiting probe-rtt.
@@ -1634,7 +1641,7 @@ impl Bbr3 {
     // Update (most of) our congestion signals: track the recent rate and volume of
     // delivered data, presence of loss.
     fn update_congestion_signals(&mut self) {
-        //self.update_max_bw();
+        self.update_max_bw();
 
         if self.ack_state.lost > 0 {
             self.loss_in_round = true;
@@ -1707,7 +1714,7 @@ impl Bbr3 {
             Some(rtt) => rtt,
             _ => Duration::from_millis(1),
         };
-        let nominal_bandwidth = self.config.initial_cwnd as f64 / srtt.as_secs_f64();
+        let nominal_bandwidth = self.init_cwnd as f64 / srtt.as_secs_f64();
         self.pacing_rate = (self.pacing_gain * nominal_bandwidth) as u64;
     }
 
@@ -1753,7 +1760,7 @@ impl Bbr3 {
     fn bdp_multiple(&mut self, bw: u64, gain: f64) -> u64 {
         if self.min_rtt == Duration::MAX {
             // no valid RTT samples yet.
-            return self.config.initial_cwnd;
+            return self.init_cwnd;
         }
 
         let bdp = bw as f64 * self.min_rtt.as_secs_f64();
@@ -1767,7 +1774,7 @@ impl Bbr3 {
 
         let mut inflight = bytes_in_flight
             .max(self.offload_budget)
-            .max(self.config.min_cwnd);
+            .max(self.min_cwnd);
 
         if self.state == State::ProbeBwUp {
             inflight = inflight.saturating_add(2 * self.config.max_datagram_size);
@@ -1836,7 +1843,7 @@ impl Bbr3 {
     // See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-modulating-cwnd-in-probertt>.
     fn probe_rtt_cwnd(&mut self) -> u64 {
         self.bdp_multiple(self.bw, self.cwnd_gain)
-            .max(self.config.min_cwnd)
+            .max(self.min_cwnd)
     }
 
     fn bound_cwnd_for_probe_rtt(&mut self) {
@@ -1851,7 +1858,7 @@ impl Bbr3 {
             self.cwnd = self
                 .cwnd
                 .saturating_sub(self.ack_state.newly_lost_bytes)
-                .max(self.config.min_cwnd);
+                .max(self.min_cwnd);
         }
 
         if self.packet_conservation {
@@ -1880,11 +1887,11 @@ impl Bbr3 {
                     .max_inflight
                     .min(self.cwnd + self.ack_state.newly_acked_bytes);
             } else if self.cwnd < self.max_inflight
-                || self.delivery_rate_estimator.delivered() < self.config.initial_cwnd
+                || self.delivery_rate_estimator.delivered() < self.init_cwnd
             {
                 self.cwnd = self.cwnd.saturating_add(self.ack_state.newly_acked_bytes);
             }
-            self.cwnd = self.cwnd.max(self.config.min_cwnd);
+            self.cwnd = self.cwnd.max(self.min_cwnd);
         }
 
         self.bound_cwnd_for_probe_rtt();
@@ -1905,7 +1912,7 @@ impl Bbr3 {
 
         // Apply inflight_lo (possibly infinite)
         cap = cap.min(self.inflight_lo);
-        cap = cap.max(self.config.min_cwnd);
+        cap = cap.max(self.min_cwnd);
         self.cwnd = self.cwnd.min(cap);
     }
 }
@@ -2088,7 +2095,7 @@ impl Bbr3 {
         now: Instant,
         _sent: Instant,
         _bytes: u64,
-        app_limited: bool,
+        _app_limited: bool,
         _rtt: &RttEstimator,
         packet_number: u64,
     ) {
@@ -2126,7 +2133,7 @@ impl Bbr3 {
             .packet_delivered
             .max(packet.rate_sample_state.delivered);
         }
-        self.update_max_bw();
+        //self.update_max_bw();
         
         
     }
@@ -2189,7 +2196,7 @@ impl Bbr3 {
         // window MUST be reduced to the minimum congestion window.
         match is_persistent_congestion {
             true => {
-                self.cwnd = self.config.min_cwnd;
+                self.cwnd = self.min_cwnd;
                 self.recovery_epoch_start = None;
             }
             false => {
@@ -2201,16 +2208,17 @@ impl Bbr3 {
         }
     }
 
-    fn on_mtu_update(&mut self, _new_mtu: u16) {
-        
+    fn on_mtu_update(&mut self, new_mtu: u16) {
+        let current_mtu = new_mtu as u64;
+        self.min_cwnd = 4 * current_mtu;
+        self.init_cwnd = self.config.initial_cwnd.max(self.min_cwnd);
+        self.cwnd = self.cwnd.max(self.min_cwnd);
         //self.config.min_cwnd = calculate_min_window(new_mtu as u64);
-        
-        
     }
 
     fn window(&self) -> u64 {
         
-        self.cwnd.max(self.config.min_cwnd)
+        self.cwnd.max(self.min_cwnd)
         
     }
     
@@ -2218,11 +2226,11 @@ impl Bbr3 {
         let min_rtt_secs = self.min_rtt.as_secs_f64();
         //let result = 
         if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
-            self.cwnd.max(self.config.min_cwnd) as u64
+            self.cwnd.max(self.min_cwnd) as u64
         } else {
             let mut pacwid = (self.pacing_rate as f64 * min_rtt_secs) as u64;
             if pacwid < (0.2 * self.cwnd as f64) as u64 {
-                pacwid = self.cwnd.max(self.config.min_cwnd);
+                pacwid = self.cwnd.max(self.min_cwnd);
             }
             pacwid
         }
