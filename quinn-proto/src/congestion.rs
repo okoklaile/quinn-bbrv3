@@ -68,7 +68,8 @@ pub trait Controller: Send + Sync {
         sent: Instant,
         is_persistent_congestion: bool,
         lost_bytes: u64,
-        packet_number: u64,
+        tx_in_flight: u64,
+        sent_size : u64,
     );
 
     /// The known MTU for the current network path has been updated

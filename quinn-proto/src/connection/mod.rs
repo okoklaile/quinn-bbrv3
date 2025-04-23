@@ -1496,7 +1496,7 @@ impl Connection {
                 self.stats.path.congestion_events += 1;
                 self.path
                     .congestion
-                    .on_congestion_event(now, largest_sent_time, false, 0,0);
+                    .on_congestion_event(now, largest_sent_time, false, 0,0,0);
             }
         }
     }
@@ -1607,7 +1607,7 @@ impl Connection {
 
         let space = &mut self.spaces[pn_space];
         space.loss_time = None;
-
+        let mut last_lost_packet_size = 0;
         for (&packet, info) in space.sent_packets.range(0..largest_acked_packet) {
             if prev_packet != Some(packet.wrapping_sub(1)) {
                 // An intervening packet was acknowledged
@@ -1623,6 +1623,7 @@ impl Connection {
                 } else {
                     lost_packets.push(packet);
                     size_of_lost_packets += info.size as u64;
+                    last_lost_packet_size = info.size;
                     if info.ack_eliciting && due_to_ack {
                         match persistent_congestion_start {
                             // Two ACK-eliciting packets lost more than congestion_period apart, with no
@@ -1698,7 +1699,8 @@ impl Connection {
                     largest_lost_sent,
                     in_persistent_congestion,
                     size_of_lost_packets,
-                    largest_lost,
+                    self.path.in_flight.bytes,
+                    largest_acked_packet,
                 );
             }
         }

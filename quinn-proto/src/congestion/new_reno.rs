@@ -89,7 +89,8 @@ impl Controller for NewReno {
         sent: Instant,
         is_persistent_congestion: bool,
         _lost_bytes: u64,
-        _packet_number: u64,
+        tx_in_flight: u64,
+        sent_size :u64,
     ) {
         if sent <= self.recovery_start_time {
             return;

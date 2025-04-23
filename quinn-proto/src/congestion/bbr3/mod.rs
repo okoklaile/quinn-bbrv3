@@ -38,13 +38,13 @@ use log::info;
 mod  min_max;
 mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
-use crate::congestion::bbr3::delivery_rate::DeliveryRateEstimator;//这个是更新rate_sample_state的
+use crate::congestion::bbr3::delivery_rate::BandwidthEstimation;//这个是更新rate_sample_state的
 //use super::{CongestionController, CongestionStats};//换成quinn的
 use super::{Controller, ControllerFactory};
 //use crate::connection::rtt::RttEstimator;//用quinn的
 use crate::connection::RttEstimator;
 
-#[derive(Debug, Clone)]
+/* #[derive(Debug, Clone)]
 pub(super) struct PacketInfo{
 /// The time the packet was sent.
 pub time_sent: Instant,
@@ -77,7 +77,7 @@ pub(super) struct RateSamplePacketState {
     /// packet.lost: The volume of data that was declared lost on transmission.
     pub lost: u64,
 
-}
+} */
 
 
 /// BBR configurable parameters.
@@ -417,9 +417,10 @@ pub (super)struct CongestionStats {
 /// See <https://datatracker.ietf.org/doc/html/draft-cardwell-iccrg-bbr-congestion-control-02>.
 #[derive(Debug,Clone)]
 pub struct Bbr3 {
+    latest_rtt: Duration,
     init_cwnd: u64,
     min_cwnd: u64,
-    sent_packets: HashMap<u64, PacketInfo>,
+    //sent_packets: HashMap<u64, PacketInfo>,
     /// Configurable parameters.
     config: Arc<Bbr3Config>,
 
@@ -565,7 +566,7 @@ pub struct Bbr3 {
     probe_rtt_round_done: bool,
 
     /// Delivery rate estimator.
-    delivery_rate_estimator: DeliveryRateEstimator,
+    delivery_rate_estimator: BandwidthEstimation,
 
     /// Accumulate information from a single ACK/SACK.
     ack_state: AckState,
@@ -620,12 +621,13 @@ impl Bbr3 {
         let initial_cwnd = config.initial_cwnd;
 
         let mut bbr3 = Self {
-           
+            latest_rtt: Duration::MAX,
+
             init_cwnd: initial_cwnd,
 
             min_cwnd: current_mtu as u64 * 4,
 
-            sent_packets: HashMap::new(),
+            //sent_packets: HashMap::new(),
 
             config,
 
@@ -703,7 +705,7 @@ impl Bbr3 {
 
             probe_rtt_round_done: false,
 
-            delivery_rate_estimator: DeliveryRateEstimator::default(),
+            delivery_rate_estimator: BandwidthEstimation::default(),
 
             ack_state: Default::default(),
 
@@ -872,8 +874,8 @@ impl Bbr3 {
     }
 
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-per-ack-steps>.
-    fn update_on_loss(&mut self, now: Instant, packet: &PacketInfo) {
-        self.handle_lost_packet(now, packet);
+    fn update_on_loss(&mut self, now: Instant, lost_bytes:u64,tx_in_flight:u64,sent_size:u64) {
+        self.handle_lost_packet(now, lost_bytes,tx_in_flight,sent_size);
     }
 
     // Update cwnd gain and pacing gain.
@@ -1300,7 +1302,7 @@ impl Bbr3 {
 
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
     fn update_min_rtt(&mut self, now: Instant) {
-        let sample_rtt = self.delivery_rate_estimator.sample_rtt();
+        let sample_rtt = self.latest_rtt;
         self.probe_rtt_expired = !self.app_limited 
         && now.saturating_duration_since(self.probe_rtt_min_stamp)
             > self.config.probe_rtt_interval;
@@ -1555,7 +1557,7 @@ impl Bbr3 {
     // at which loss rates cross BBRLossThresh.
     //
     // See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probing-for-bandwidth-in-pr>.
-    fn handle_lost_packet(&mut self, now: Instant, packet: &PacketInfo) {
+    fn handle_lost_packet(&mut self, now: Instant, lost_bytes:u64,tx_in_flight:u64,sent_size:u64) {
         // In startup phase we need to update stats upon every ack reception
         if !self.bw_probe_samples && !self.in_slow_start() {
             // not a packet sent while probing bandwidth.
@@ -1563,14 +1565,14 @@ impl Bbr3 {
         }
 
         // Inflight at transmit.
-        self.ack_state.tx_in_flight = packet.rate_sample_state.tx_in_flight;
-        self.ack_state.lost = self.stats.bytes_lost_in_total - packet.rate_sample_state.lost;
+        self.ack_state.tx_in_flight = tx_in_flight;
+        self.ack_state.lost = self.stats.bytes_lost_in_total - lost_bytes;
         /* self.delivery_rate_estimator
             .set_app_limited(packet.rate_sample_state.is_app_limited); */
         self.app_limited=true;
 
         if self.is_inflight_too_high() {
-            self.ack_state.tx_in_flight = self.inflight_hi_from_lost_packet(packet);
+            self.ack_state.tx_in_flight = self.inflight_hi_from_lost_packet(tx_in_flight,sent_size);
             self.handle_inflight_too_high(now);
         }
     }
@@ -1581,11 +1583,11 @@ impl Bbr3 {
     //    (lost_prev + lost_prefix) / (inflight_prev + lost_prefix) >= BBRLossThresh
     //    /* solving for lost_prefix we arrive at: */
     //    lost_prefix = (BBRLossThresh * inflight_prev - lost_prev) / (1 - BBRLossThresh)
-    fn inflight_hi_from_lost_packet(&mut self, packet: &PacketInfo) -> u64 {
-        let size = packet.sent_size as u64;
+    fn inflight_hi_from_lost_packet(&mut self, tx_in_flight:u64,sent_size:u64) -> u64 {
+        let size = sent_size as u64;
 
         // What was in flight before this packet?
-        let inflight_prev = packet.rate_sample_state.tx_in_flight.saturating_sub(size);
+        let inflight_prev = tx_in_flight.saturating_sub(size);
 
         // What was lost before this packet?
         let lost_prev = self.ack_state.lost.saturating_sub(size);
@@ -2052,31 +2054,14 @@ impl Bbr3 {
  } */
  impl Controller for Bbr3 {
     
-    fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
-        let mut packet_info = PacketInfo {
-           time_sent: now,
-           pkt_num: last_packet_number,
-           time_acked: None,
-           sent_size: bytes as usize,
-            rate_sample_state: RateSamplePacketState {
-               delivered: 0,
-               delivered_time: None,
-               first_sent_time: None,
-               
-               tx_in_flight: 0,
-               lost: 0,
-            },
-        };
+    fn on_sent(&mut self, now: Instant, bytes: u64, _last_packet_number: u64) {
+        
 
-        self.delivery_rate_estimator.on_packet_sent(
-            &mut packet_info,
-            self.stats.bytes_in_flight,
-            self.stats.bytes_lost_in_total,
-        );
-        let sent_size = packet_info.sent_size;
-        self.sent_packets.insert(last_packet_number, packet_info);
+        self.delivery_rate_estimator.on_sent(now, bytes);
+        
+        
         self.handle_restart_from_idle(now, self.stats.bytes_in_flight);
-        self.stats.bytes_in_flight += sent_size as u64;
+        self.stats.bytes_in_flight += bytes as u64;
     }
     
     fn begin_ack(&mut self, now: Instant) {
@@ -2093,46 +2078,41 @@ impl Bbr3 {
     fn on_ack(
         &mut self,
         now: Instant,
-        _sent: Instant,
-        _bytes: u64,
-        _app_limited: bool,
-        _rtt: &RttEstimator,
+        sent: Instant,
+        bytes: u64,
+        app_limited: bool,
+        rtt: &RttEstimator,
         packet_number: u64,
     ) {
-        //self.app_limited = app_limited;
-        //self.app_limited = true;
-        if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
-            packet.time_acked = Some(now);
-        
-        // Update rate sample by each ack packet.
-        self.delivery_rate_estimator.update_rate_sample(&mut packet);
-
+        self.delivery_rate_estimator
+        .on_ack(now, sent, bytes, self.round.round_count, app_limited);
+        self.latest_rtt = rtt.min();
         // Update stats.
         self.stats.bytes_in_flight = self
             .stats
             .bytes_in_flight
-            .saturating_sub(packet.sent_size as u64);
+            .saturating_sub(bytes as u64);
         self.stats.bytes_acked_in_total = self
             .stats
             .bytes_acked_in_total
-            .saturating_add(packet.sent_size as u64);
+            .saturating_add(bytes as u64);
         if self.in_slow_start() {
             self.stats.bytes_acked_in_slow_start = self
                 .stats
                 .bytes_acked_in_slow_start
-                .saturating_add(packet.sent_size as u64);
+                .saturating_add(bytes as u64);
         }
 
         // Update ack state.
-        self.ack_state.newly_acked_bytes += packet.sent_size as u64;
-        self.ack_state.last_ack_packet_sent_time = packet.time_sent;
+        self.ack_state.newly_acked_bytes += bytes as u64;
+        self.ack_state.last_ack_packet_sent_time = sent;
 
         // Only remember the max P.delivered to determine whether a new round starts.
         self.ack_state.packet_delivered = self
             .ack_state
             .packet_delivered
-            .max(packet.rate_sample_state.delivered);
-        }
+            .max(self.delivery_rate_estimator.delivered());
+        
         //self.update_max_bw();
         
         
@@ -2146,11 +2126,11 @@ impl Bbr3 {
         _largest_packet_num_acked: Option<u64>,
     ) {
         self.app_limited = app_limited;
+        self.delivery_rate_estimator.end_acks(self.round.round_count, app_limited);
         // /self.app_limited = true;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
-        // Generate rate sample.
-        self.delivery_rate_estimator.generate_rate_sample();
+        
 
         // Check if exit recovery
         if self.in_recovery && !self.in_recovery(self.ack_state.last_ack_packet_sent_time) {
@@ -2174,12 +2154,13 @@ impl Bbr3 {
     fn on_congestion_event(
         &mut self,
         now: Instant,
-        _sent: Instant,
+        sent: Instant,
         is_persistent_congestion: bool,
         lost_bytes: u64,
-        packet_number: u64,
+        tx_in_flight: u64,
+        sent_size :u64,
     ) {
-        if packet_number == 0 {
+        if tx_in_flight == 0 {
             return;
         }
         
@@ -2187,9 +2168,9 @@ impl Bbr3 {
         self.stats.bytes_lost_in_total = self.stats.bytes_lost_in_total.saturating_add(lost_bytes);
         self.ack_state.newly_lost_bytes =
             self.ack_state.newly_lost_bytes.saturating_add(lost_bytes);
-        if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
+       
         
-        self.update_on_loss(now, &mut packet);
+        self.update_on_loss(now, lost_bytes,tx_in_flight,sent_size);
 
         // Refer to https://www.rfc-editor.org/rfc/rfc9002#section-7.6.2
         // When persistent congestion is declared, the sender's congestion
@@ -2200,11 +2181,11 @@ impl Bbr3 {
                 self.recovery_epoch_start = None;
             }
             false => {
-                if !self.in_recovery && !self.in_recovery(packet.time_sent) {
+                if !self.in_recovery && !self.in_recovery(sent) {
                     self.enter_recovery(now);
                 }
             }
-        }
+        
         }
     }
 
