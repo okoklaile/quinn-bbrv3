@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
-
+use log::info;
 use super::min_max::MinMax;
 
 #[derive(Clone, Debug)]
@@ -55,11 +55,15 @@ impl BandwidthEstimation {
         };
 
         let ack_rate = match self.prev_acked_time {
-            Some(prev_acked_time) => Self::bw_from_delta(
-                self.total_acked - self.prev_total_acked,
-                now - prev_acked_time,
-            )
-            .unwrap_or(0),
+            Some(prev_acked_time) => {
+                match Self::bw_from_delta(
+                    self.total_acked - self.prev_total_acked,
+                    now - prev_acked_time,
+                ) {
+                    Some(rate) => rate,
+                    None => self.latest_bw, // 当时间间隔为0时，保持上一个有效值
+                }
+            }
             None => 0,
         };
 
@@ -68,7 +72,12 @@ impl BandwidthEstimation {
         if !app_limited && self.max_filter.get() < bandwidth {
             self.max_filter.update_max(round, bandwidth);
         }
-        
+        info!(target : "quinn_test",
+              "bandwidth={:.3},ack_rate={:.3},send_rate={:.3}",
+              (bandwidth as f64 * 8.0) / (1024.0 * 1024.0),
+              (ack_rate as f64 * 8.0) / (1024.0 * 1024.0),
+              (send_rate as f64 * 8.0) / (1024.0 * 1024.0),
+            )
     }
 
     pub(crate) fn bytes_acked_this_window(&self) -> u64 {
@@ -85,7 +94,7 @@ impl BandwidthEstimation {
 
     pub(crate) const fn bw_from_delta(bytes: u64, delta: Duration) -> Option<u64> {
         let window_duration_ns = delta.as_nanos();
-        if window_duration_ns == 0 {
+        if window_duration_ns == 0 || window_duration_ns < 1_000_000 {
             return None;
         }
         let b_ns = bytes * 1_000_000_000;

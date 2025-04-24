@@ -27,6 +27,8 @@
 
 use std::fmt::Debug;
 
+use log::info;
+
 #[derive(Copy, Clone, Debug)]
 pub(super) struct MinMax {
     /// round count, not a timestamp
@@ -53,7 +55,11 @@ impl MinMax {
             time: current_round,
             value: measurement,
         };
-
+        /* info!(
+            target: "quinn_test",
+            "measurement={:?}",
+            measurement as f64 * 8.0 / (1024.0 * 1024.0)
+        ); */
         if self.samples[0].value == 0  /* uninitialised */
             || /* found new max? */ sample.value >= self.samples[0].value
             || /* nothing left in window? */ sample.time - self.samples[2].time > self.window

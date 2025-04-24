@@ -459,14 +459,21 @@ impl Controller for Bbr {
 
         self.prev_in_flight_count = in_flight;
         self.loss_state.reset();
-        info!(
+        /* info!(
             target: "quinn_test",
             " app_limited={},window={:.4},bw={:.4},state={:?}",
             app_limited,
             (self.window() as f64 *8.0)/(1024.0*1024.0),
             (self.max_bandwidth.get_estimate() as f64 *8.0)/(1024.0*1024.0),
             self.mode
-        )
+        ) */
+       info!(
+            target: "quinn_test",
+            "bw={:.4},state={:?}",
+            (self.max_bandwidth.get_estimate() as f64 *8.0)/(1024.0*1024.0),
+            self.mode
+        
+       )
     }
 
     fn on_congestion_event(
@@ -586,6 +593,11 @@ impl AckAggregationState {
         self.aggregation_epoch_bytes += newly_acked_bytes;
         let diff = self.aggregation_epoch_bytes - expected_bytes_acked;
         self.max_ack_height.update_max(round, diff);
+        /* info!(
+            target: "quinn_test",
+            "diff={:.4}",
+            (diff as f64 *8.0)/(1024.0*1024.0),
+        ); */
         diff
     }
 }

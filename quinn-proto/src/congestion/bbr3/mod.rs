@@ -34,7 +34,7 @@ use std::time::{Duration, Instant};
 //use log::*;
 use rand::Rng;
 use log::info;
-mod min_max_1;
+//mod min_max_1;
 mod  min_max;
 mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
@@ -689,7 +689,7 @@ impl Bbr3 {
 
             extra_acked_delivered: 0,
 
-            extra_acked_filter: MinMax::new(EXTRA_ACKED_FILTER_LEN),
+            extra_acked_filter: MinMax::default(),
 
             full_pipe: Default::default(),
 
@@ -985,7 +985,7 @@ impl Bbr3 {
             // record new baseline level
             self.full_pipe.full_bw = self.max_bw;
             self.full_pipe.full_bw_count = 0;
-
+            self.extra_acked_filter.reset();
             return;
         }
 

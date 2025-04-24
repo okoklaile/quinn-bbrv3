@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
-use crate::congestion::bbr3::min_max_1::MinMax;
+use crate::congestion::bbr3::min_max::MinMax;
 use log::info;
 #[derive(Clone, Debug)]
 pub(crate) struct BandwidthEstimation {
@@ -54,11 +54,15 @@ impl BandwidthEstimation {
         };
 
         let ack_rate = match self.prev_acked_time {
-            Some(prev_acked_time) => Self::bw_from_delta(
-                self.total_acked - self.prev_total_acked,
-                now - prev_acked_time,
-            )
-            .unwrap_or(0),
+            Some(prev_acked_time) => {
+                match Self::bw_from_delta(
+                    self.total_acked - self.prev_total_acked,
+                    now - prev_acked_time,
+                ) {
+                    Some(rate) => rate,
+                    None => self.latest_bw, // 当时间间隔为0时，保持上一个有效值
+                }
+            }
             None => 0,
         };
 
@@ -68,14 +72,11 @@ impl BandwidthEstimation {
             self.max_filter.update_max(round, bandwidth);
         }
         info!(target : "quinn_test",
-              "total_acked={:.3}, prev_total_acked={:.3},  total_sent={:.3}, prev_total_sent={:.3},  bandwidth={:.3},get_estimate={:.3}",
-              self.total_acked as f64 / (1024.0 * 1024.0),
-              self.prev_total_acked as f64 / (1024.0 * 1024.0),
-              self.total_sent as f64 / (1024.0 * 1024.0),
-              self.prev_total_sent as f64 / (1024.0 * 1024.0),
-              bandwidth as f64 / (1024.0 * 1024.0),
-              self.get_estimate() as f64 / (1024.0 * 1024.0),
-            )
+              "bandwidth={:.3},ack_rate={:.3},send_rate={:.3}",
+              (bandwidth as f64 * 8.0) / (1024.0 * 1024.0),
+              (ack_rate as f64 * 8.0) / (1024.0 * 1024.0),
+              (send_rate as f64 * 8.0) / (1024.0 * 1024.0),
+            );
     }
 
     pub(crate) fn sample_delivered(&self) -> u64 {
@@ -102,7 +103,7 @@ impl BandwidthEstimation {
 
     pub(crate) const fn bw_from_delta(bytes: u64, delta: Duration) -> Option<u64> {
         let window_duration_ns = delta.as_nanos();
-        if window_duration_ns == 0 {
+        if window_duration_ns == 0 || window_duration_ns < 1_000_000 {
             return None;
         }
         let b_ns = bytes * 1_000_000_000;
