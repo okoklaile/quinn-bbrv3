@@ -2163,12 +2163,12 @@ impl Bbr3 {
         self.update_gains();
         self.update_control_parameters();
         info!(target : "quinn_test",
-              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4}",
+              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},max_bw={:.4}",
               self.app_limited,
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
-              (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
+              (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
               self.state,
-              (self.bw as f64 * 8.0)/(1024.0*1024.0)
+              (self.max_bw as f64 * 8.0)/(1024.0*1024.0)
             )
     }
 
@@ -2223,27 +2223,8 @@ impl Bbr3 {
         
     }
     
-    fn pacing_window(&self) -> u64 {
-        let min_rtt_secs = self.min_rtt.as_secs_f64();
-        //let result = 
-        if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
-            self.cwnd.max(self.min_cwnd) as u64
-        } else {
-            let mut pacwid = (self.pacing_rate as f64 * min_rtt_secs) as u64;
-            if pacwid < (0.2 * self.cwnd as f64) as u64 {
-                pacwid = self.cwnd.max(self.min_cwnd);
-            }
-            pacwid
-        }
-        
-/*         tracing::info!(
-            "BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", 
-            result,
-            self.pacing_rate,
-            self.min_rtt
-        ); */
-        //println!("BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", result, self.pacing_rate, self.min_rtt);
-        //result
+    fn pacing_rate(&self) -> Option<u64> {
+        Some(self.pacing_rate)
     }
 
     fn clone_box(&self) -> Box<dyn Controller> {

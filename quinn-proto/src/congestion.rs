@@ -6,14 +6,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 mod bbr;
-mod cubic;
-mod new_reno;
+
 
 mod bbr3;
 
 pub use bbr::{Bbr, BbrConfig};
-pub use cubic::{Cubic, CubicConfig};
-pub use new_reno::{NewReno, NewRenoConfig};
+
 
 pub use bbr3::{Bbr3, Bbr3Config};
 /// Common interface for different congestion controllers
@@ -87,7 +85,7 @@ pub trait Controller: Send + Sync {
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 
     /// return pacing window for connection/pacing
-    fn pacing_window(&self) -> u64;
+    fn pacing_rate(&self) -> Option<u64> ;
 }
 
 /// Constructs controllers on demand

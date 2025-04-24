@@ -84,7 +84,7 @@ impl BandwidthEstimation {
 
     pub(crate) const fn bw_from_delta(bytes: u64, delta: Duration) -> Option<u64> {
         let window_duration_ns = delta.as_nanos();
-        if window_duration_ns == 0 {
+        if window_duration_ns == 0 || window_duration_ns < 1_000_000 {
             return None;
         }
         let b_ns = bytes * 1_000_000_000;
