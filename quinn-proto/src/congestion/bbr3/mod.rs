@@ -2057,7 +2057,7 @@ impl Bbr3 {
            time_sent: now,
            pkt_num: last_packet_number,
            time_acked: None,
-           sent_size: bytes as usize,
+           sent_size: 0,
             rate_sample_state: RateSamplePacketState {
                delivered: 0,
                delivered_time: None,
@@ -2094,7 +2094,7 @@ impl Bbr3 {
         &mut self,
         now: Instant,
         _sent: Instant,
-        _bytes: u64,
+        bytes: u64,
         _app_limited: bool,
         _rtt: &RttEstimator,
         packet_number: u64,
@@ -2103,7 +2103,8 @@ impl Bbr3 {
         //self.app_limited = true;
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
             packet.time_acked = Some(now);
-        
+            packet.sent_size = bytes as usize;
+            
         // Update rate sample by each ack packet.
         self.delivery_rate_estimator.update_rate_sample(&mut packet);
 
