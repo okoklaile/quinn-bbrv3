@@ -117,10 +117,10 @@ impl Pacer {
 /// 2ms is chosen here since framework timers might have 1ms precision.
 /// If kernel-level pacing is supported later a higher time here might be
 /// more applicable.
-const BURST_INTERVAL_NANOS: u128 = 1_000_000; // 2ms
+const BURST_INTERVAL_NANOS: u128 = 2_000_000; // 2ms
 
 /// Allows some usage of GSO, and doesn't slow down the handshake.
 const MIN_BURST_SIZE: u64 = 10;
 
 /// Creating 256 packets took 1ms in a benchmark, so larger bursts don't make sense.
-const MAX_BURST_SIZE: u64 = 128;
+const MAX_BURST_SIZE: u64 = 256;

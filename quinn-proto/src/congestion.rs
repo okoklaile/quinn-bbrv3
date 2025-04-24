@@ -6,12 +6,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 mod bbr;
-
+mod cubic;
 
 mod bbr3;
 
 pub use bbr::{Bbr, BbrConfig};
-
+pub use cubic::{Cubic, CubicConfig};
 
 pub use bbr3::{Bbr3, Bbr3Config};
 /// Common interface for different congestion controllers

@@ -2163,7 +2163,7 @@ impl Bbr3 {
         self.update_gains();
         self.update_control_parameters();
         info!(target : "quinn_test",
-              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},max_bw={:.4}",
+              "app_limited={},cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4}",
               self.app_limited,
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),

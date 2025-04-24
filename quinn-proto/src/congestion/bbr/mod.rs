@@ -461,10 +461,10 @@ impl Controller for Bbr {
         self.loss_state.reset();
         info!(
             target: "quinn_test",
-            " app_limited={},window={:.4},bw={:.4},state={:?}",
+            " app_limited={},window={:.4},pacing_rate={:.4},state={:?}",
             app_limited,
             (self.window() as f64 *8.0)/(1024.0*1024.0),
-            (self.max_bandwidth.get_estimate() as f64 *8.0)/(1024.0*1024.0),
+            (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
             self.mode
         )
     }
