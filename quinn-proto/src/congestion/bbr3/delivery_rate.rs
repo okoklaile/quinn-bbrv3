@@ -1,8 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::time::{Duration, Instant};
-
-use super::min_max::MinMax;
-
+use crate::congestion::bbr3::min_max_1::MinMax;
+use log::info;
 #[derive(Clone, Debug)]
 pub(crate) struct BandwidthEstimation {
     total_acked: u64,
@@ -68,6 +67,15 @@ impl BandwidthEstimation {
         if !app_limited && self.max_filter.get() < bandwidth {
             self.max_filter.update_max(round, bandwidth);
         }
+        info!(target : "quinn_test",
+              "total_acked={:.3}, prev_total_acked={:.3},  total_sent={:.3}, prev_total_sent={:.3},  bandwidth={:.3},get_estimate={:.3}",
+              self.total_acked as f64 / (1024.0 * 1024.0),
+              self.prev_total_acked as f64 / (1024.0 * 1024.0),
+              self.total_sent as f64 / (1024.0 * 1024.0),
+              self.prev_total_sent as f64 / (1024.0 * 1024.0),
+              bandwidth as f64 / (1024.0 * 1024.0),
+              self.get_estimate() as f64 / (1024.0 * 1024.0),
+            )
     }
 
     pub(crate) fn sample_delivered(&self) -> u64 {

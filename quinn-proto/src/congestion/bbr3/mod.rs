@@ -30,11 +30,11 @@ extern crate rand;
 use std::sync::Arc;
 use std::any::Any;
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
+
 //use log::*;
 use rand::Rng;
 use log::info;
-
+mod min_max_1;
 mod  min_max;
 mod  delivery_rate;
 use crate::congestion::bbr3::min_max::MinMax;
@@ -2142,12 +2142,13 @@ impl Bbr3 {
         self.update_gains();
         self.update_control_parameters();
         info!(target : "quinn_test",
-              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4}",
+              "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4},delivery_rate={:.4}",
               self.app_limited,
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_window() as f64 * 8.0)/(1024.0*1024.0),
               self.state,
-              (self.bw as f64 * 8.0)/(1024.0*1024.0)
+              (self.bw as f64 * 8.0)/(1024.0*1024.0),
+              (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0)/(1024.0*1024.0)
             )
     }
 

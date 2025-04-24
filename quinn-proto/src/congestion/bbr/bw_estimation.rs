@@ -68,6 +68,7 @@ impl BandwidthEstimation {
         if !app_limited && self.max_filter.get() < bandwidth {
             self.max_filter.update_max(round, bandwidth);
         }
+        
     }
 
     pub(crate) fn bytes_acked_this_window(&self) -> u64 {
