@@ -15,6 +15,7 @@ pub(crate) struct BandwidthEstimation {
     max_filter: MinMax,
     acked_at_last_window: u64,
     latest_bw: u64,
+    last_ack_rate : u64,
 }
 
 impl BandwidthEstimation {
@@ -52,7 +53,7 @@ impl BandwidthEstimation {
         } else {
             u64::MAX // will take the min of send and ack, so this is just a skip
         };
-
+        
         let ack_rate = match self.prev_acked_time {
             Some(prev_acked_time) => {
                 match Self::bw_from_delta(
@@ -60,13 +61,14 @@ impl BandwidthEstimation {
                     now - prev_acked_time,
                 ) {
                     Some(rate) => rate,
-                    None => self.latest_bw, // 当时间间隔为0时，保持上一个有效值
+                    None => self.last_ack_rate, // 当时间间隔为0时，保持上一个有效值
                 }
             }
             None => 0,
         };
-
+        self.last_ack_rate = ack_rate;
         let bandwidth = send_rate.min(ack_rate);
+        
         self.latest_bw = bandwidth;
         if !app_limited && self.max_filter.get() < bandwidth {
             self.max_filter.update_max(round, bandwidth);
@@ -128,6 +130,7 @@ impl Default for BandwidthEstimation {
             max_filter: MinMax::default(),
             acked_at_last_window: 0,
             latest_bw : 0,
+            last_ack_rate : 0,
         }
     }
 }

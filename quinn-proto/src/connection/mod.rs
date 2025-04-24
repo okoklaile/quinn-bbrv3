@@ -672,8 +672,9 @@ impl Connection {
                         smoothed_rtt,
                         bytes_to_send,
                         self.path.current_mtu(),
-                        self.path.congestion.pacing_window(),
+                        self.path.congestion.window(),
                         now,
+                        self.path.congestion.pacing_rate().unwrap_or(0),
                     ) {
                         self.timers.set(Timer::Pacing, delay);
                         congestion_blocked = true;

@@ -2204,8 +2204,8 @@ impl Bbr3 {
         
     }
     
-    fn pacing_window(&self) -> u64 {
-        let min_rtt_secs = self.min_rtt.as_secs_f64();
+    fn pacing_rate(&self) -> Option<u64> {
+       /*  let min_rtt_secs = self.min_rtt.as_secs_f64();
         //let result = 
         if self.pacing_rate == 0 || min_rtt_secs < 0.01 {
             self.cwnd.max(self.min_cwnd) as u64
@@ -2215,16 +2215,8 @@ impl Bbr3 {
                 pacwid = self.cwnd.max(self.min_cwnd);
             }
             pacwid
-        }
-        
-/*         tracing::info!(
-            "BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", 
-            result,
-            self.pacing_rate,
-            self.min_rtt
-        ); */
-        //println!("BBR3 pacing_window={} bytes, pacing_rate={} bytes/s, min_rtt={:?}", result, self.pacing_rate, self.min_rtt);
-        //result
+        } */
+        Some(self.pacing_rate)
     }
 
     fn clone_box(&self) -> Box<dyn Controller> {
