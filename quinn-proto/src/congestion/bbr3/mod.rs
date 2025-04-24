@@ -2141,7 +2141,7 @@ impl Bbr3 {
         self.update_model_and_state(self.ack_state.now, bytes_in_flight);
         self.update_gains();
         self.update_control_parameters();
-        info!(target : "quinn_test",
+        /* info!(target : "quinn_test",
               "app_limited={},cwnd={:.4},pacing_window={:.4},state={:?},bw={:.4},delivery_rate={:.4}",
               self.app_limited,
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
@@ -2149,7 +2149,7 @@ impl Bbr3 {
               self.state,
               (self.bw as f64 * 8.0)/(1024.0*1024.0),
               (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0)/(1024.0*1024.0)
-            )
+            ) */
     }
 
     fn on_congestion_event(
