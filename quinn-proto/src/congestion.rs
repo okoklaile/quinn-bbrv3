@@ -86,6 +86,15 @@ pub trait Controller: Send + Sync {
 
     /// return pacing window for connection/pacing
     fn pacing_rate(&self) -> Option<u64> ;
+        /// Check if in slow start.
+    fn in_slow_start(&self) -> bool {
+            true
+        }
+    
+        /// Check if in recovery mode.
+    fn in_recovery(&self, sent_time: Instant) -> bool {
+            false
+    }
 }
 
 /// Constructs controllers on demand
