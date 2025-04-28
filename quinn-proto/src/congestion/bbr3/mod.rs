@@ -1311,10 +1311,9 @@ impl Bbr3 {
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
     fn update_min_rtt(&mut self, now: Instant) {
         let sample_rtt = self.delivery_rate_estimator.sample_rtt();
-        self.probe_rtt_expired = !self.app_limited 
-        && now.saturating_duration_since(self.probe_rtt_min_stamp)
+        self.probe_rtt_expired = now.saturating_duration_since(self.probe_rtt_min_stamp)//这里加了这个条件!self.app_limited 
             > self.config.probe_rtt_interval;
-
+        //！app_limited是否要加，有待商榷
         if !sample_rtt.is_zero()
             && (sample_rtt <= self.probe_rtt_min_delay || self.probe_rtt_expired)
         {
@@ -1575,6 +1574,7 @@ impl Bbr3 {
         // Inflight at transmit.
         self.ack_state.tx_in_flight = packet.rate_sample_state.tx_in_flight;
         self.ack_state.lost = self.stats.bytes_lost_in_total - packet.rate_sample_state.lost;
+        
         /* self.delivery_rate_estimator
             .set_app_limited(packet.rate_sample_state.is_app_limited); */
         self.app_limited=true;
@@ -1663,13 +1663,13 @@ impl Bbr3 {
         }
 
         self.adapt_lower_bounds_from_congestion();
-        self.loss_in_round = true;
+        self.loss_in_round = false;  //这里改成了false，参考ietf这里就应该是false
     }
 
     fn is_probing_bw(&self) -> bool {
         matches!(
             self.state,
-            State::Startup | State::ProbeBwRefill | State::ProbeBwUp | State::ProbeBwCruise
+            State::Startup | State::ProbeBwRefill | State::ProbeBwUp //| State::ProbeBwCruise //这里增加了ProbeBwCruise阶段
         )
     }
 
@@ -1923,19 +1923,19 @@ impl Bbr3 {
         // Apply inflight_lo (possibly infinite)
         cap = cap.min(self.inflight_lo);
         cap = cap.max(self.min_cwnd);
-        self.cwnd = self.cwnd.min(cap);
-        info!(target:"quinn_test",
+        self.cwnd = self.cwnd.min(cap); //一般都会大于最小cwnd，所以在cruise阶段最终取inflight_with_headroom和inflightlo的最小值
+        /* info!(target:"quinn_test",
             "cwnd:{},state={:?},iflight_lo:{}",
             self.cwnd,
             self.state,
             self.inflight_lo,
-            )
+            ) */
     }
 }
 
  impl Controller for Bbr3 {
     
-    fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
+    fn on_sent(&mut self, now: Instant, _bytes: u64, last_packet_number: u64) {
         let mut packet_info = PacketInfo {
            time_sent: now,
            pkt_num: last_packet_number,
@@ -1984,6 +1984,7 @@ impl Bbr3 {
     ) {
         //self.app_limited = app_limited;
         //self.app_limited = true;
+        
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
             packet.time_acked = Some(now);
             packet.sent_size = bytes as usize;
@@ -2030,9 +2031,13 @@ impl Bbr3 {
         app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
-        self.app_limited = app_limited;
+        self.app_limited = app_limited;//app_limited使用上层传来的
         // /self.app_limited = true;
-        self.stats.bytes_in_flight = in_flight;
+        self.stats.bytes_in_flight = in_flight;//in_flight使用上层传来的
+        self.stats.bytes_lost_in_total = self
+           .stats
+           .bytes_lost_in_total
+           .saturating_add(self.ack_state.lost);
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
         // Generate rate sample.
@@ -2047,15 +2052,18 @@ impl Bbr3 {
         self.update_model_and_state(self.ack_state.now, bytes_in_flight);
         self.update_gains();
         self.update_control_parameters();
-        /* info!(target : "quinn_test",
-              "app_limited={},cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4},in_flight={}",
-              self.app_limited,
+        info!(target : "quinn_test",
+              "cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4},in_flight={}",
+              
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
               self.state,
               (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
               self.stats.bytes_in_flight,
-            ) */
+            )
+            /* info!(target:"quinn_test",
+            "lost={}",
+            self.loss_in_round);     */
     }
 
     fn on_congestion_event(
@@ -2077,7 +2085,9 @@ impl Bbr3 {
         if let Some(mut packet) = self.sent_packets.remove(&packet_number) {
         
         self.update_on_loss(now, &mut packet);
-
+        /* info!(target:"quinn_test",
+        "lost={}",
+        self.ack_state.lost); */
         // Refer to https://www.rfc-editor.org/rfc/rfc9002#section-7.6.2
         // When persistent congestion is declared, the sender's congestion
         // window MUST be reduced to the minimum congestion window.

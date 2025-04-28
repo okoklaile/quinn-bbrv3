@@ -208,9 +208,10 @@ impl Bbr {
         }
     }
 
-    fn is_min_rtt_expired(&self, now: Instant, app_limited: bool) -> bool {
-        !app_limited
-            && self
+    fn is_min_rtt_expired(&self, now: Instant, _app_limited: bool) -> bool {
+        /* !app_limited
+            &&  */
+            self
                 .probe_rtt_last_started_at
                 .map(|last| now.saturating_duration_since(last) > Duration::from_secs(10))
                 .unwrap_or(true)
@@ -461,12 +462,15 @@ impl Controller for Bbr {
         self.loss_state.reset();
         info!(
             target: "quinn_test",
-            " app_limited={},window={:.4},pacing_rate={:.4},state={:?}",
-            app_limited,
+            "window={:.4},pacing_rate={:.4},state={:?}",
+            
             (self.window() as f64 *8.0)/(1024.0*1024.0),
             (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
             self.mode
         )
+        /* info!(target:"quinn_test",
+        "lost={}",
+        self.loss_state.lost_bytes,); */
     }
 
     fn on_congestion_event(

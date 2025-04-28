@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use tracing::warn;
+//use tracing::warn;
 
 /// A simple token-bucket pacer
 ///
@@ -15,7 +15,7 @@ use tracing::warn;
 pub(super) struct Pacer {
     capacity: u64,
     last_window: u64,
-    last_mtu: u16,
+    //last_mtu: u16,
     tokens: u64,
     prev: Instant,
 }
@@ -27,7 +27,7 @@ impl Pacer {
         Self {
             capacity,
             last_window: window,
-            last_mtu: mtu,
+            //last_mtu: mtu,
             tokens: capacity,
             prev: now,
         }
