@@ -208,10 +208,9 @@ impl Bbr {
         }
     }
 
-    fn is_min_rtt_expired(&self, now: Instant, _app_limited: bool) -> bool {
-        /* !app_limited
-            &&  */
-            self
+    fn is_min_rtt_expired(&self, now: Instant, app_limited: bool) -> bool {
+        !app_limited
+            &&self
                 .probe_rtt_last_started_at
                 .map(|last| now.saturating_duration_since(last) > Duration::from_secs(10))
                 .unwrap_or(true)

@@ -1181,8 +1181,8 @@ impl Bbr3 {
             //   (packets_in_flight > 1.25 * BBR.bdp).
             // - Loss: The current loss rate exceeds BBRLossThresh (2%).
             State::ProbeBwUp => {
-                if self.has_elapsed_in_phase(now, self.min_rtt)
-                    && bytes_in_flight > self.inflight(self.pacing_gain)
+                if self.has_elapsed_in_phase(now, self.min_rtt)      //self.min_rtt,self.bw_probe_wait
+                    && bytes_in_flight > self.inflight(self.pacing_gain)      //若持续时间改成2-3秒，会表现更好，但不符合ietf规定。
                 {
                     self.start_probe_bw_down(now);
                 }
