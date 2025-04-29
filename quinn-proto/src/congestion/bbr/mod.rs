@@ -1108,6 +1108,18 @@ impl Controller for Bbr {
         // Update model and control parameters.
         self.update_model_and_state(self.ack_state.now);
         self.update_control_parameters();
+        info!(target : "quinn_test",
+              "cwnd={:.4},pacing_rate={:.4},state={:?},bw={:.4},in_flight={},delivery_rate={:.4}",
+              (self.window() as f64 * 8.0)/(1024.0*1024.0),
+              (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
+              self.state,
+              (self.btlbw as f64 * 8.0)/(1024.0*1024.0),
+              self.stats.bytes_in_flight,
+              (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0 )/(1024.0*1024.0),
+            )
+            /* info!(target:"quinn_test",
+            "lost={}",
+            self.loss_in_round);     */
     }
 
     fn on_congestion_event(
