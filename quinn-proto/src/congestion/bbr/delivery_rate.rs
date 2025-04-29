@@ -20,7 +20,7 @@
 
 use std::time::Duration;
 use std::time::Instant;
-
+use log::info;
 use super::PacketInfo;
 
 /// Rate sample output.
@@ -200,6 +200,11 @@ impl DeliveryRateEstimator {
 
         self.rate_sample.delivery_rate = self.rate_sample.delivered * 1_000_000_u64
             / self.rate_sample.interval.as_micros() as u64;
+        info!(target : "quinn_test",
+              "delivery_rate={:.4}",
+              
+              (self.rate_sample.delivery_rate as f64 * 8.0 )/(1024.0*1024.0),
+            )
     }
 
     /// Set app limited status and record the latest packet num as end of app limited mode.
