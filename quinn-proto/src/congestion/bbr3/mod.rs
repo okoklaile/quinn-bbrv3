@@ -1301,10 +1301,10 @@ impl Bbr3 {
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
     fn update_min_rtt(&mut self, now: Instant) {
         let sample_rtt = self.delivery_rate_estimator.sample_rtt();
-        self.probe_rtt_expired = !self.app_limited 
-        && now.saturating_duration_since(self.probe_rtt_min_stamp)
+        self.probe_rtt_expired =now.saturating_duration_since(self.probe_rtt_min_stamp)
             > self.config.probe_rtt_interval;
-
+        // !self.app_limited &&
+         
         if !sample_rtt.is_zero()
             && (sample_rtt <= self.probe_rtt_min_delay || self.probe_rtt_expired)
         {
@@ -1653,7 +1653,7 @@ impl Bbr3 {
         }
 
         self.adapt_lower_bounds_from_congestion();
-        self.loss_in_round = true;
+        self.loss_in_round = false;
     }
 
     fn is_probing_bw(&self) -> bool {
@@ -2142,11 +2142,12 @@ impl Bbr3 {
     fn on_end_acks(
         &mut self,
         _now: Instant,
-        _in_flight: u64,
+        in_flight: u64,
         app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
         self.app_limited = app_limited;
+        self.stats.bytes_in_flight = in_flight;
         // /self.app_limited = true;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
 
