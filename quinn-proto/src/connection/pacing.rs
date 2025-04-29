@@ -57,39 +57,29 @@ impl Pacer {
         if smoothed_rtt.is_zero() || window == 0 || pacing_rate == 0 {
             return None;
         }
-
-        // Update capacity and tokens if necessary
+    
+        // 更新容量
         if window != self.last_window {
-            optimal_capacity(smoothed_rtt,window,  mtu);
+            self.capacity = optimal_capacity(smoothed_rtt, window, mtu);
             self.tokens = self.capacity.min(self.tokens);   
             self.last_window = window;
         }
-
-        // If tokens are enough, no need to wait and update
+    
+        // 如果超过了固定tick，就补充令牌
+        while now.duration_since(self.prev) >= PACER_TICK {
+            self.prev += PACER_TICK;
+            let tokens_to_add = pacing_rate.saturating_mul(PACER_TICK.as_nanos() as u64) / 1_000_000_000;
+            self.tokens = self.tokens.saturating_add(tokens_to_add).min(self.capacity);
+        }
+    
         if self.tokens >= bytes_to_send {
             return None;
         }
-
-        // Tokens are refilled at the rate of pacing_rate
-        let elapsed = now.saturating_duration_since(self.prev);
-        self.tokens = self
-            .tokens
-            .saturating_add((pacing_rate as u128 * elapsed.as_nanos() / 1_000_000_000) as u64)
-            .min(self.capacity);
-        self.prev = now;
-        info!(target : "quinn_test",
-            "elapsed={}",
-            elapsed.as_nanos(),
-        );
-
-        if bytes_to_send <= self.tokens {
-            return None;
-        }
-
-        // If tokens are not enough, calculate the time to wait for enough tokens.
-        let time_to_wait =
-            bytes_to_send.saturating_sub(self.tokens) * 1_000_000_000 / pacing_rate.max(1);
-        Some(self.prev + Duration::from_nanos(time_to_wait))
+        
+        // 计算还需等待多久令牌才能足够
+        let needed = bytes_to_send.saturating_sub(self.tokens);
+        let time_to_wait_ns = needed.saturating_mul(1_000_000_000) / pacing_rate.max(1);
+        Some(now + Duration::from_nanos(time_to_wait_ns))
     }
 }
 /// Calculates a pacer capacity for a certain window and RTT
@@ -128,3 +118,5 @@ const MIN_BURST_SIZE: u64 = 10;
 
 /// Creating 256 packets took 1ms in a benchmark, so larger bursts don't make sense.
 const MAX_BURST_SIZE: u64 = 256;
+
+const PACER_TICK: Duration = Duration::from_micros(500); // 0.5ms
