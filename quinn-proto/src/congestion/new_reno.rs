@@ -127,8 +127,8 @@ impl Controller for NewReno {
         self
     }
 
-    fn pacing_window(&self) -> u64 {
-        self.window()
+    fn pacing_rate(&self) -> Option<u64> {
+        Some(0)
     }
 }
 

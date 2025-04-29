@@ -88,7 +88,7 @@ pub trait Controller: Send + Sync {
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 
     /// return pacing window for connection/pacing
-    fn pacing_window(&self) -> u64;
+    fn pacing_rate(&self) -> Option<u64> ;
 }
 
 /// Constructs controllers on demand
