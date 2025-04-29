@@ -1655,7 +1655,7 @@ impl Bbr3 {
         }
 
         self.adapt_lower_bounds_from_congestion();
-        self.loss_in_round = true;
+        self.loss_in_round = false;
     }
 
     fn is_probing_bw(&self) -> bool {
@@ -2121,11 +2121,12 @@ impl Bbr3 {
     fn on_end_acks(
         &mut self,
         _now: Instant,
-        _in_flight: u64,
+        in_flight: u64,
         app_limited: bool,
         _largest_packet_num_acked: Option<u64>,
     ) {
         self.app_limited = app_limited;
+        self.stats.bytes_in_flight = in_flight;
         self.delivery_rate_estimator.end_acks(self.round.round_count, app_limited);
         // /self.app_limited = true;
         let bytes_in_flight: u64 = self.stats.bytes_in_flight;
