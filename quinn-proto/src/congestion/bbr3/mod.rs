@@ -2052,7 +2052,7 @@ impl Bbr3 {
         self.update_model_and_state(self.ack_state.now, bytes_in_flight);
         self.update_gains();
         self.update_control_parameters();
-        info!(target : "quinn_test",
+        /* info!(target : "quinn_test",
               "cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4},in_flight={}",
               
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
@@ -2060,7 +2060,7 @@ impl Bbr3 {
               self.state,
               (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
               self.stats.bytes_in_flight,
-            )
+            ) */
             /* info!(target:"quinn_test",
             "lost={}",
             self.loss_in_round);     */

@@ -1,7 +1,7 @@
 //! Pacing of packet transmissions.
 
 use std::time::{Duration, Instant};
-
+use log::info;
 //use tracing::warn;
 
 /// A simple token-bucket pacer
@@ -77,6 +77,10 @@ impl Pacer {
             .saturating_add((pacing_rate as u128 * elapsed.as_nanos() / 1_000_000_000) as u64)
             .min(self.capacity);
         self.prev = now;
+        info!(target : "quinn_test",
+            "elapsed={}",
+            elapsed.as_nanos(),
+        );
 
         if bytes_to_send <= self.tokens {
             return None;
