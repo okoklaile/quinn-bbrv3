@@ -1004,12 +1004,12 @@ impl Bbr {
 impl Controller for Bbr {
     
 
-    fn on_sent(&mut self, now: Instant, _bytes: u64, last_packet_number: u64) {
+    fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
         let mut packet_info = PacketInfo {
             time_sent: now,
             pkt_num: last_packet_number,
             time_acked: None,
-            sent_size: 0,
+            sent_size: bytes as usize,
              rate_sample_state: RateSamplePacketState {
                 delivered: 0,
                 delivered_time: None,
@@ -1059,7 +1059,7 @@ impl Controller for Bbr {
             
         // Update rate sample by each ack packet.
         self.delivery_rate_estimator.update_rate_sample(&mut packet);
-
+        self.delivery_rate_estimator.generate_rate_sample();
         // Update stats.
         self.stats.bytes_in_flight = self
             .stats
@@ -1075,9 +1075,9 @@ impl Controller for Bbr {
                 .bytes_acked_in_slow_start
                 .saturating_add(packet.sent_size as u64);
         }
-        info!(target:"quinn_test",
+        /* info!(target:"quinn_test",
             "state={:?}",
-            self.state);
+            self.state); */
         // Update ack state.
         self.ack_state.newly_acked_bytes += packet.sent_size as u64;
         self.ack_state.last_ack_packet_sent_time = packet.time_sent;
@@ -1100,7 +1100,7 @@ impl Controller for Bbr {
     // /self.app_limited = true;
         self.stats.bytes_in_flight = in_flight;//in_flight使用上层传来的
         // Generate rate sample.
-        self.delivery_rate_estimator.generate_rate_sample();
+        
 
         // Check if exit recovery
         if self.in_recovery && !self.in_recovery(self.ack_state.last_ack_packet_sent_time) {
@@ -1110,7 +1110,7 @@ impl Controller for Bbr {
         // Update model and control parameters.
         self.update_model_and_state(self.ack_state.now);
         self.update_control_parameters();
-        /* info!(target : "quinn_test",
+        info!(target : "quinn_test",
               "cwnd={:.4},pacing_rate={:.4},state={:?},bw={:.4},in_flight={},delivery_rate={:.4}",
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
@@ -1118,7 +1118,7 @@ impl Controller for Bbr {
               (self.btlbw as f64 * 8.0)/(1024.0*1024.0),
               self.stats.bytes_in_flight,
               (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0 )/(1024.0*1024.0),
-            ) */
+            )
             /* info!(target:"quinn_test",
             "lost={}",
             self.loss_in_round);     */

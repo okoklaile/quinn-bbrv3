@@ -1311,8 +1311,7 @@ impl Bbr3 {
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-probertt>.
     fn update_min_rtt(&mut self, now: Instant) {
         let sample_rtt = self.delivery_rate_estimator.sample_rtt();
-        self.probe_rtt_expired = now.saturating_duration_since(self.probe_rtt_min_stamp)//这里加了这个条件!self.app_limited 
-            > self.config.probe_rtt_interval;
+        self.probe_rtt_expired =now.saturating_duration_since(self.probe_rtt_min_stamp) > self.config.probe_rtt_interval;
         //！app_limited是否要加，有待商榷
         if !sample_rtt.is_zero()
             && (sample_rtt <= self.probe_rtt_min_delay || self.probe_rtt_expired)
@@ -1427,7 +1426,11 @@ impl Bbr3 {
     /// See <https://www.ietf.org/archive/id/draft-cardwell-iccrg-bbr-congestion-control-02.html#name-updating-the-bbrmax_bw-max->.
     fn update_max_bw(&mut self) {
         let bw = self.delivery_rate_estimator.delivery_rate();
-
+        /* info!(target: "quinn_test",
+            "bw={:.4}",
+            (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0)/ 1024.0 / 1024.0,
+    
+            ); */
         self.update_round();
 
         if bw >= self.max_bw || !self.is_app_limited() {
@@ -1935,12 +1938,12 @@ impl Bbr3 {
 
  impl Controller for Bbr3 {
     
-    fn on_sent(&mut self, now: Instant, _bytes: u64, last_packet_number: u64) {
+    fn on_sent(&mut self, now: Instant, bytes: u64, last_packet_number: u64) {
         let mut packet_info = PacketInfo {
            time_sent: now,
            pkt_num: last_packet_number,
            time_acked: None,
-           sent_size: 0,
+           sent_size: bytes as usize,
             rate_sample_state: RateSamplePacketState {
                delivered: 0,
                delivered_time: None,
@@ -2052,15 +2055,17 @@ impl Bbr3 {
         self.update_model_and_state(self.ack_state.now, bytes_in_flight);
         self.update_gains();
         self.update_control_parameters();
-        /* info!(target : "quinn_test",
-              "cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4},in_flight={}",
+        info!(target : "quinn_test",
+              "cwnd={:.4},pacing_rate={:.4},state={:?},max_bw={:.4},in_flight={},deliveryrate={:.4},app_limited={}",
               
               (self.window() as f64 * 8.0)/(1024.0*1024.0),
               (self.pacing_rate().unwrap_or(0) as f64 * 8.0)/(1024.0*1024.0),
               self.state,
               (self.max_bw as f64 * 8.0)/(1024.0*1024.0),
               self.stats.bytes_in_flight,
-            ) */
+              (self.delivery_rate_estimator.delivery_rate() as f64 * 8.0)/(1024.0*1024.0),
+              self.app_limited,
+            )
             /* info!(target:"quinn_test",
             "lost={}",
             self.loss_in_round);     */

@@ -80,6 +80,38 @@ impl Pacer {
         let needed = bytes_to_send.saturating_sub(self.tokens);
         let time_to_wait_ns = needed.saturating_mul(1_000_000_000) / pacing_rate.max(1);
         Some(now + Duration::from_nanos(time_to_wait_ns))
+        /* if smoothed_rtt.is_zero() || window == 0 || pacing_rate == 0 {
+            return None;
+        }
+
+        // Update capacity and tokens if necessary
+        if window != self.last_window {
+            self.capacity = optimal_capacity(smoothed_rtt, window, mtu);
+            self.tokens = self.capacity.min(self.tokens);
+            self.last_window = window;
+        }
+
+        // If tokens are enough, no need to wait and update
+        if self.tokens >= bytes_to_send {
+            return None;
+        }
+
+        // Tokens are refilled at the rate of pacing_rate
+        let elapsed = now.saturating_duration_since(self.prev);
+        self.tokens = self
+            .tokens
+            .saturating_add((pacing_rate as u128 * elapsed.as_nanos() / 1_000_000_000) as u64)
+            .min(self.capacity);
+        self.prev = now;
+
+        if bytes_to_send <= self.tokens {
+            return None;
+        }
+
+        // If tokens are not enough, calculate the time to wait for enough tokens.
+        let time_to_wait =
+            bytes_to_send.saturating_sub(self.tokens) * 1_000_000_000 / pacing_rate.max(1);
+        Some(self.prev + Duration::from_nanos(time_to_wait)) */
     }
 }
 /// Calculates a pacer capacity for a certain window and RTT

@@ -20,8 +20,8 @@
 
 use std::time::Duration;
 use std::time::Instant;
-
-use super:: PacketInfo;
+use log::info;
+use super::PacketInfo;
 
 /// Rate sample output.
 ///
@@ -88,6 +88,16 @@ pub(super) struct DeliveryRateEstimator {
 
     /// Rate sample.
     rate_sample: RateSample,
+
+    total_acked: u64,
+    prev_total_acked: u64,
+    acked_time: Option<Instant>,
+    prev_acked_time: Option<Instant>,
+    total_sent: u64,
+    prev_total_sent: u64,
+    sent_time: Instant,
+    prev_sent_time: Option<Instant>,
+    latest_bw: u64,
 }
 
 impl DeliveryRateEstimator {
@@ -112,6 +122,10 @@ impl DeliveryRateEstimator {
         packet.rate_sample_state.tx_in_flight = bytes_in_flight;
         packet.rate_sample_state.lost = bytes_lost;
 
+        self.prev_total_sent = self.total_sent;
+        self.total_sent += packet.sent_size as u64;
+        self.prev_sent_time = Some(self.sent_time);
+        self.sent_time = packet.time_sent;
         self.last_sent_pkt_num = packet.pkt_num;
     }
 
@@ -165,26 +179,65 @@ impl DeliveryRateEstimator {
         packet.rate_sample_state.delivered_time = None;
 
         self.largest_acked_pkt_num = packet.pkt_num.max(self.largest_acked_pkt_num);
-    }
 
+        self.prev_total_acked = self.total_acked;
+        self.total_acked += packet.sent_size as u64;
+        self.prev_acked_time = self.acked_time;
+        self.acked_time = Some(packet.time_acked.unwrap());
+
+        let prev_sent_time = match self.prev_sent_time {
+            Some(prev_sent_time) => prev_sent_time,
+            None => return,
+        };
+
+        let send_rate = if self.sent_time > prev_sent_time {
+            Self::bw_from_delta(
+                self.total_sent - self.prev_total_sent,
+                self.sent_time - prev_sent_time,
+            )
+            .unwrap_or(0)
+        } else {
+            u64::MAX // will take the min of send and ack, so this is just a skip
+        };
+
+        let ack_rate = match self.prev_acked_time {
+            Some(prev_acked_time) => {
+                match Self::bw_from_delta(
+                    self.total_acked - self.prev_total_acked,
+                    packet.time_acked.unwrap() - prev_acked_time,
+                ) {
+                    Some(rate) => rate,
+                    None => self.latest_bw, // 当时间间隔为0时，保持上一个有效值
+                }
+            }
+            None => 0,
+        };
+
+        let bandwidth = send_rate.min(ack_rate);
+        self.latest_bw = bandwidth;
+        self.rate_sample.delivery_rate = bandwidth;
+        
+    }
+    pub(crate) const fn bw_from_delta(bytes: u64, delta: Duration) -> Option<u64> {
+        let window_duration_ns = delta.as_nanos();
+        if window_duration_ns == 0 {
+            return None;
+        }
+        let b_ns = bytes * 1_000_000_000;
+        let bytes_per_second = b_ns / (window_duration_ns as u64);
+        Some(bytes_per_second)
+    }
     /// Upon receiving ACK, fill in delivery rate sample rs.
     /// See <https://datatracker.ietf.org/doc/html/draft-cheng-iccrg-delivery-rate-estimation-02#section-3.3>.
     pub(super) fn generate_rate_sample(&mut self) {
-        // For each newly SACKed or ACKed packet P,
-        //     `UpdateRateSample(P, rs)`
-        // It's done before generate_rate_sample is called.
-
-        // Clear app-limited field if bubble is ACKed and gone.
-        /* if self.is_app_limited() && self.largest_acked_pkt_num > self.last_app_limited_pkt_num {
-            self.set_app_limited(false);
-        } */
+        
 
         // Nothing delivered on this ACK.
         if self.rate_sample.prior_time.is_none() {
             return;
         }
 
-        // Use the longer of the send_elapsed and ack_elapsed.
+        /* // Use the longer of the send_elapsed and ack_elapsed.
         self.rate_sample.interval = self
             .rate_sample
             .send_elapsed
@@ -199,7 +252,7 @@ impl DeliveryRateEstimator {
         }
 
         self.rate_sample.delivery_rate = self.rate_sample.delivered * 1_000_000_u64
-            / self.rate_sample.interval.as_micros() as u64;
+            / self.rate_sample.interval.as_micros() as u64; */
     }
 
     /// Set app limited status and record the latest packet num as end of app limited mode.
@@ -255,10 +308,18 @@ impl Default for DeliveryRateEstimator {
             delivered: 0,
             delivered_time: now,
             first_sent_time: now,
-            
             largest_acked_pkt_num: 0,
             last_sent_pkt_num: 0,
             rate_sample: RateSample::default(),
+            total_acked: 0,
+            prev_total_acked: 0,
+            acked_time: None,
+            prev_acked_time: None,
+            total_sent: 0,
+            prev_total_sent: 0,
+            sent_time: Instant::now(),
+            prev_sent_time: None,
+            latest_bw: 0,
         }
     }
 }
